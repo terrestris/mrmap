@@ -1,0 +1,21 @@
+<entry>
+    <title>{{entry.title}}</title>
+    <inspire_dls:spatial_dataset_identifier_code>
+        {{entry.id}}
+    </inspire_dls:spatial_dataset_identifier_code>
+    <inspire_dls:spatial_dataset_identifier_namespace>
+        {{entry.metadata_url}}
+    </inspire_dls:spatial_dataset_identifier_namespace>
+
+    <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed-metadata' entry.id %}" rel="describedby" type="application/xml"/>
+    <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed' entry.id %}" rel="alternate" type="application/atom+xml"/>
+
+    <id>{% url 'atom:get-service-feed' metadata.id %}</id>
+
+    <rights>{{entry.access_constraints}}</rights>
+    <updated>{{entry.last_modified}}</updated>
+    <georss:polygon>
+        {{ entry.bounding_geometry.convex_hull.coords.0.0.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.0.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.1.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.1.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.2.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.2.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.3.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.3.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.4.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.4.0 }}
+    </georss:polygon>
+    <category></category>
+</entry>

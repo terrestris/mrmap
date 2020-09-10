@@ -206,6 +206,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'api',
     'csw',
+    'atom',
     'django_celery_beat',
     'monitoring',
     'bootstrap4',

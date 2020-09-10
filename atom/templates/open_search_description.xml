@@ -1,0 +1,30 @@
+<OpenSearchDescription
+	xmlns="http://a9.com/-/spec/opensearch/1.1/"
+	xmlns:inspire_dls="http://inspire.ec.europa.eu/schemas/inspire_dls/1.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://a9.com/-/spec/opensearch/1.1/ OpenSearch.xsd">
+	<ShortName>MrMap Download search service.</ShortName>
+	<Description>Search Description for {{metadata.title}}</Description>
+	<!--URL of this document-->
+	<Url type="application/opensearchdescription+xml" rel="self" template="{{ROOT_URL}}{% url 'atom:opensearch' %}?spatial_dataset_identifier_code={{metadata.id}}"/>
+	<!--Generic URL template for browser integration-->
+	<Url type="text/html" rel="results" template="{{ROOT_URL}}{% url 'atom:opensearch' %}?q={searchTerms}"/>
+	<!--Describe Spatial Data Set Operation request URL template to be used in order to retrieve the description of Spatial Object Types in a Spatial Dataset-->
+	<Url type="application/atom+xml" rel="describedby" template="{{ROOT_URL}}{% url 'atom:opensearch' %}?spatial_dataset_identifier_code={inspire_dls:spatial_dataset_identifier_code?}&amp;spatial_dataset_identifier_namespace={inspire_dls:spatial_dataset_identifier_namespace?}&amp;crs={inspire_dls:crs?}&amp;language={language?}&amp;q={searchTerms?}"/>
+
+	<!--Get Spatial Data Set Operation request URL template to be used in order to retrieve a Spatial Dataset-->
+	<Url type="application/x-filegdb" rel="results" template="{{ROOT_URL}}{% url 'atom:opensearch' %}?spatial_dataset_identifier_code={inspire_dls:spatial_dataset_identifier_code?}&amp;spatial_dataset_identifier_namespace={inspire_dls:spatial_dataset_identifier_namespace?}&amp;crs={inspire_dls:crs?}&amp;language={language?}&amp;q={searchTerms?}"/>
+
+	<Contact>kontakt@geoportal.rlp.de</Contact>
+	<Tags>
+		{% for kw in metadata.keywords.items %}
+			{{kw}}
+		{% endfor %}
+	</Tags>
+	<LongName>{{metadata.title}} search</LongName>
+	<Image/>
+	<Query role="example" inspire_dls:spatial_dataset_identifier_namespace="{{metadata.metadata_url}}" inspire_dls:spatial_dataset_identifier_code="{{metadata.id}}" inspire_dls:crs="{{metadata.reference_system.0}}" language="en" title="{{metadata.title}}" count="{{dataset_result_count}}"/>
+	<Developer>Spatial data infrastructure Rhineland-Palatinate, Germany</Developer>
+	<!--Languages  supported by the service. The first language is the default language-->
+	<Language>en</Language>
+</OpenSearchDescription>
