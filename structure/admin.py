@@ -30,7 +30,7 @@ class ThemeAdmin(admin.ModelAdmin):
 
 
 class GroupAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'description', 'parent_group_link', 'organization_link', 'role_link', 'created_by_link', 'is_public_group', )
+    list_display = ('id', 'name', 'description', 'parent_group_link', 'organization_link', 'role_link', 'created_by_link', 'is_public_group', 'is_permission_group', )
     list_filter = ('role', 'created_by', 'is_public_group' )
     search_fields = ['id', 'name', 'description', 'parent_group__name', ]
     readonly_fields = (
@@ -112,16 +112,19 @@ class MrMapUserAdmin(UserAdmin):
     )
 
 
-
 class UserActivationAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'activation_until']
 
 
-class PendingRequestAdmin(admin.ModelAdmin):
-    list_display = ['type', 'group', 'organization', 'activation_until']
+class PublishRequestAdmin(admin.ModelAdmin):
+    list_display = ['group', 'organization', 'activation_until', 'created_by']
+
+class GroupInvitationAdmin(admin.ModelAdmin):
+    list_display = ['invited_user', 'to_group', 'activation_until', 'created_by']
 
 
-admin.site.register(PendingRequest, PendingRequestAdmin)
+admin.site.register(PublishRequest, PublishRequestAdmin)
+admin.site.register(GroupInvitationRequest, GroupInvitationAdmin)
 admin.site.register(UserActivation, UserActivationAdmin)
 admin.site.register(GroupActivity, GroupActivityAdmin)
 admin.site.register(Organization, OrganizationAdmin)

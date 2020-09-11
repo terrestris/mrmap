@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from MrMap.management.commands.setup_settings import DEFAULT_GROUPS, DEFAULT_ROLE_NAME
-from MrMap.settings import MONITORING_REQUEST_TIMEOUT, MONITORING_TIME
+from monitoring.settings import MONITORING_REQUEST_TIMEOUT, MONITORING_TIME
 from structure.models import MrMapGroup, Role, Permission, Organization, MrMapUser, Theme
 from structure.permissionEnums import PermissionEnum
 from structure.settings import PUBLIC_ROLE_NAME, PUBLIC_GROUP_NAME, SUPERUSER_GROUP_NAME, SUPERUSER_ROLE_NAME, \
@@ -99,6 +99,7 @@ class Command(BaseCommand):
 
         # handle root organization
         orga = self._create_default_organization()
+        default_group = self._create_default_group(orga, superuser)
         superuser.organization = orga
         superuser.save()
         msg = "Superuser '" + name + "' added to group '" + str(group.name) + "'!"
@@ -140,7 +141,8 @@ class Command(BaseCommand):
             name=group_name,
             parent_group=parent_group,
             role=role,
-            created_by=user
+            created_by=user,
+            is_permission_group=True,
         )[0]
 
         group.description = group_desc
@@ -170,7 +172,8 @@ class Command(BaseCommand):
             name=PUBLIC_GROUP_NAME,
             description=PUBLIC_GROUP_DESCRIPTION,
             created_by=user,
-            is_public_group=True
+            is_public_group=True,
+            is_permission_group=True,
         )[0]
         if group.role is None:
             role = Role.objects.get_or_create(name=PUBLIC_ROLE_NAME)[0]
@@ -187,21 +190,22 @@ class Command(BaseCommand):
         Returns:
              group (Group): The newly created group
         """
+
+        role = Role.objects.get_or_create(name=SUPERUSER_ROLE_NAME)[0]
+
+        all_permissions = PermissionEnum.as_choices(drop_empty_choice=True)
+        for perm in all_permissions:
+            p = Permission.objects.get_or_create(name=perm[1])[0]
+            role.permissions.add(p)
+        role.save()
+
         group = MrMapGroup.objects.get_or_create(
             name=SUPERUSER_GROUP_NAME,
             description=SUPERUSER_GROUP_DESCRIPTION,
             created_by=user,
+            is_permission_group=True,
+            role=role,
         )[0]
-        if group.role is None:
-            role = Role.objects.get_or_create(name=SUPERUSER_ROLE_NAME)[0]
-
-            all_permissions = PermissionEnum.as_choices(drop_empty_choice=True)
-            for perm in all_permissions:
-                p = Permission.objects.get_or_create(name=perm[1])[0]
-                role.permissions.add(p)
-            role.save()
-            group.role = role
-            group.created_by = user
         return group
 
     @staticmethod
@@ -226,6 +230,16 @@ class Command(BaseCommand):
         orga = Organization.objects.get_or_create(organization_name="Testorganization")[0]
 
         return orga
+
+    @staticmethod
+    def _create_default_group(org: Organization, user: MrMapUser):
+        group = MrMapGroup.objects.get_or_create(
+            name="Testgroup",
+            organization=org,
+            created_by=user,
+        )[0]
+        group.user_set.add(user)
+        return group
 
     @staticmethod
     def _create_default_monitoring_setting():

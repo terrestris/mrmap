@@ -21,13 +21,13 @@ from requests.exceptions import InvalidURL
 from MrMap import utils
 from MrMap.cacher import PageCacher
 from MrMap.messages import SERVICE_REGISTERED, SERVICE_ACTIVATED, SERVICE_DEACTIVATED
-from MrMap.settings import EXEC_TIME_PRINT, PROGRESS_STATUS_AFTER_PARSING
+from MrMap.settings import EXEC_TIME_PRINT
 from api.settings import API_CACHE_KEY_PREFIX
 from csw.settings import CSW_CACHE_PREFIX
 from service.settings import DEFAULT_SRS
 from service.models import Service, Metadata, SecuredOperation, ExternalAuthentication, \
     MetadataRelation, ProxyLog
-from service.settings import service_logger
+from service.settings import service_logger, PROGRESS_STATUS_AFTER_PARSING
 from structure.models import MrMapUser, MrMapGroup, Organization, PendingTask, ErrorReport
 from service.helper import service_helper, task_helper
 from users.helper import user_helper
@@ -285,8 +285,9 @@ def async_new_service(url_dict: dict, user_id: int, register_group_id: int, regi
             service.metadata.set_proxy(True)
 
         # after metadata has been persisted, we can auto-generate all metadata public_id's
-        metadatas = service.metadata.get_subelements_metadatas()
-        metadatas = [service.metadata] + metadatas
+        sub_metadatas = service.metadata.get_subelements_metadatas()
+        dataset_metadatas = list(filter(None, [md.get_related_dataset_metadata() for md in sub_metadatas]))
+        metadatas = [service.metadata] + sub_metadatas + dataset_metadatas
         for md in metadatas:
             if md.public_id is None:
                 md.public_id = md.generate_public_id()

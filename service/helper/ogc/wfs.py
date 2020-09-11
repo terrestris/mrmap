@@ -12,7 +12,7 @@ from lxml.etree import _Element
 from service.settings import DEFAULT_SRS, SERVICE_OPERATION_URI_TEMPLATE, SERVICE_METADATA_URI_TEMPLATE, \
     HTML_METADATA_URI_TEMPLATE, service_logger
 from MrMap.settings import XML_NAMESPACES, EXEC_TIME_PRINT, \
-    MULTITHREADING_THRESHOLD, PROGRESS_STATUS_AFTER_PARSING, GENERIC_NAMESPACE_TEMPLATE
+    MULTITHREADING_THRESHOLD, GENERIC_NAMESPACE_TEMPLATE
 from MrMap.messages import SERVICE_GENERIC_ERROR
 from MrMap.utils import execute_threads
 from service.helper.enums import OGCServiceVersionEnum, OGCServiceEnum, OGCOperationEnum, ResourceOriginEnum, \
@@ -24,7 +24,7 @@ from service.helper.ogc.wms import OGCWebService
 from service.helper import service_helper, xml_helper, task_helper
 from service.models import FeatureType, Keyword, ReferenceSystem, Service, Metadata, ServiceType, MimeType, Namespace, \
     FeatureTypeElement, MetadataRelation, RequestOperation, ExternalAuthentication, ServiceUrl
-from service.settings import ALLOWED_SRS
+from service.settings import ALLOWED_SRS, PROGRESS_STATUS_AFTER_PARSING
 from structure.models import Organization, MrMapUser, MrMapGroup, Contact
 
 
@@ -719,17 +719,10 @@ class OGCWebFeatureService(OGCWebService):
         md.fees = self.service_identification_fees
         md.created_by = group
         md.capabilities_original_uri = self.service_connect_url
-        md.capabilities_uri = self.service_connect_url
         if self.service_bounding_box is not None:
             md.bounding_geometry = self.service_bounding_box
 
         # Save metadata record so we can use M2M or id of record later
-        md.save()
-
-        md.capabilities_uri = SERVICE_OPERATION_URI_TEMPLATE.format(md.id) + "request={}".format(OGCOperationEnum.GET_CAPABILITIES.value)
-        md.service_metadata_uri = SERVICE_METADATA_URI_TEMPLATE.format(md.id)
-        md.html_metadata_uri = HTML_METADATA_URI_TEMPLATE.format(md.id)
-
         md.save()
 
         return md
@@ -908,7 +901,6 @@ class OGCWebFeatureService(OGCWebService):
             f_t.parent_service = service
             f_t.metadata.contact = contact
             f_t.metadata.capabilities_original_uri = self.service_connect_url
-            f_t.metadata.capabilities_uri = self.service_connect_url
 
             f_t.dataset_md_list = feature_type_val.get("dataset_md_list", [])
             f_t.additional_srs_list = feature_type_val.get("srs_list", [])
@@ -918,10 +910,6 @@ class OGCWebFeatureService(OGCWebService):
 
             f_t.parent_service = service
             md = f_t.metadata
-            md.save()
-            md.capabilities_uri = SERVICE_OPERATION_URI_TEMPLATE.format(md.id) + "request={}".format(
-                OGCOperationEnum.GET_CAPABILITIES.value)
-            md.service_metadata_uri = SERVICE_METADATA_URI_TEMPLATE.format(md.id)
             md.save()
             f_t.metadata = md
             f_t.save()
