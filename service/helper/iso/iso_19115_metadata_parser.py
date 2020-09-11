@@ -23,7 +23,7 @@ from service.settings import INSPIRE_LEGISLATION_FILE, HTML_METADATA_URI_TEMPLAT
 from MrMap import utils
 from service.helper import xml_helper
 from service.helper.common_connector import CommonConnector
-from service.helper.enums import ConnectionEnum, MetadataEnum, DocumentEnum, ResourceOriginEnum
+from service.helper.enums import ConnectionEnum, MetadataEnum, DocumentEnum, ResourceOriginEnum, SpatialResolutionTypesEnum
 from service.helper.epsg_api import EpsgApi
 from service.models import Metadata, Keyword, Document, Dataset, LegalDate, LegalReport
 from structure.models import Organization, MrMapGroup
@@ -384,10 +384,10 @@ class ISOMetadata:
         ground_res = xml_helper.try_get_text_from_xml_element(xml_obj, "//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance".format(xpath_type))
         if equivalent_scale is not None and int(equivalent_scale) > 0:
             self.spatial_res_val = equivalent_scale
-            self.spatial_res_type = "scaleDenominator"
+            self.spatial_res_type = SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value
         elif ground_res is not None and len(ground_res) > 0:
             self.spatial_res_val = ground_res
-            self.spatial_res_type = "groundDistance"
+            self.spatial_res_type = SpatialResolutionTypesEnum.GROUND_DISTANCE.value
 
         self.ref_system = xml_helper.try_get_text_from_xml_element(xml_obj, "//gmd:MD_Metadata/gmd:referenceSystemInfo/gmd:MD_ReferenceSystem/gmd:referenceSystemIdentifier/gmd:RS_Identifier/gmd:code/gco:CharacterString")
         self.ref_system_version = xml_helper.try_get_text_from_xml_element(xml_obj, "//gmd:MD_Metadata/gmd:referenceSystemInfo/gmd:MD_ReferenceSystem/gmd:referenceSystemIdentifier/gmd:RS_Identifier/gmd:version/gco:CharacterString")

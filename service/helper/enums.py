@@ -76,6 +76,14 @@ class OGCOperationEnum(EnumChoice):
     GET_RECORD_BY_ID = "GetRecordById"
 
 
+class SpatialResolutionTypesEnum(EnumChoice):
+    """ Defines all spatial resolution types
+
+    """
+    SCALE_DENOMINATOR = "scaleDenominator"
+    GROUND_DISTANCE = "groundDistance"
+
+
 class MetadataEnum(EnumChoice):
     """ Defines all metadata types
 

@@ -24,11 +24,11 @@ from MrMap.cacher import DocumentCacher
 from MrMap.messages import PARAMETER_ERROR, LOGGING_INVALID_OUTPUTFORMAT
 from MrMap.settings import HTTP_OR_SSL, HOST_NAME, GENERIC_NAMESPACE_TEMPLATE, ROOT_URL, EXEC_TIME_PRINT
 from MrMap import utils
-from MrMap.validators import not_uuid
+from MrMap.validators import not_uuid, validate_spatial_resolution_types_enum_choices
 from monitoring.models import MonitoringSetting, MonitoringRun
 from service.helper.common_connector import CommonConnector
 from service.helper.enums import OGCServiceEnum, OGCServiceVersionEnum, MetadataEnum, OGCOperationEnum, DocumentEnum, \
-    ResourceOriginEnum, CategoryOriginEnum, MetadataRelationEnum, HttpMethodEnum
+    ResourceOriginEnum, CategoryOriginEnum, MetadataRelationEnum, HttpMethodEnum, SpatialResolutionTypesEnum
 from service.helper.crypto_handler import CryptoHandler
 from service.settings import DEFAULT_SERVICE_BOUNDING_BOX, EXTERNAL_AUTHENTICATION_FILEPATH, \
     SERVICE_OPERATION_URI_TEMPLATE, SERVICE_LEGEND_URI_TEMPLATE, SERVICE_DATASET_URI_TEMPLATE, COUNT_DATA_PIXELS_ONLY, \
@@ -564,7 +564,11 @@ class Metadata(Resource):
     status = models.IntegerField(null=True, blank=True)
     use_proxy_uri = models.BooleanField(default=False)
     log_proxy_access = models.BooleanField(default=False)
-    spatial_res_type = models.CharField(max_length=100, null=True, blank=True)
+    spatial_res_type = models.CharField(max_length=100,
+                                        null=True,
+                                        blank=True,
+                                        choices=SpatialResolutionTypesEnum.as_choices(),
+                                        validators=[validate_spatial_resolution_types_enum_choices])
     spatial_res_value = models.CharField(max_length=100, null=True, blank=True)
     is_broken = models.BooleanField(default=False)
     is_custom = models.BooleanField(default=False)
