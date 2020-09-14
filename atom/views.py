@@ -3,8 +3,8 @@ from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 
 from MrMap.responses import DefaultContext
-from service.helper.enums import MetadataEnum
-from service.models import Metadata
+from service.helper.enums import MetadataEnum, OGCServiceEnum
+from service.models import Metadata, Service
 
 
 def index(request: HttpRequest):
@@ -17,6 +17,38 @@ def index(request: HttpRequest):
     """
 
     return None
+
+
+def create_entries_recursive(service: Service):
+    """ Checks all child layers recursive for datasets
+    Args:
+        service: The service we will check for datasets for all child layers
+    Returns:
+        A list of entries
+    """
+
+    entries = []
+    child_services = Service.objects.filter(parent_service=service)
+    is_group_layer = False
+    if child_services:
+        # there are some sublayers... this is a group layer
+        is_group_layer = True
+        for child_service in child_services:
+            child_entries = create_entries_recursive(service=child_service)
+            if len(child_entries) > 0:
+                for child_entry in child_entries:
+                    entries.append(child_entry)
+    datasets = service.metadata.related_metadata.all().filter(metadata_to__metadata_type=MetadataEnum.DATASET.value,)
+    if datasets:
+        # the are datasets for this group layer. We can create a dataset entry for this group layer.
+        for dataset in datasets:
+            entries.append({
+                "dataset_for": service.metadata,
+                "dataset": dataset.metadata_to,
+                "is_group_layer": is_group_layer,
+            })
+
+    return entries
 
 
 def get_service_feed(request: HttpRequest, metadata_id):
@@ -35,21 +67,27 @@ def get_service_feed(request: HttpRequest, metadata_id):
     Returns:
         A http response from type application/atom+xml
     """
-    metadata = get_object_or_404(klass=Metadata,
-                                 id=metadata_id,
-                                 metadata_type=MetadataEnum.DATASET.value)
+    resource_metadata = get_object_or_404(klass=Metadata,
+                                          id=metadata_id, )
+    entries = []
 
+    if resource_metadata.service.is_wms:
+        #  this is a wms.. we need to collect all child_services
+        entries = create_entries_recursive(resource_metadata.service)
+
+    # Todo: implement language parameter and logic to switch language
     language = request.GET.get('language', None)
 
     context = {
-        "metadata": metadata,
-        "entries": [metadata, ],
+        "resource_metadata": resource_metadata,
+        "entries": entries,
         "is_service_feed": True,
     }
     default_context = DefaultContext(request=request,
                                      context=context)
     content = render_to_string(template_name="atom_feed.xml",
                                context=default_context.get_context(), )
+
     return HttpResponse(content=content,
                         content_type="application/atom+xml")
 
@@ -69,14 +107,14 @@ def get_dataset_feed(request: HttpRequest, metadata_id):
     Returns:
         A http response from type application/atom+xml
     """
-    metadata = get_object_or_404(klass=Metadata,
-                                 id=metadata_id,
-                                 metadata_type=MetadataEnum.DATASET.value)
+    dataset = get_object_or_404(klass=Metadata,
+                                id=metadata_id,
+                                metadata_type=MetadataEnum.DATASET.value)
 
     language = request.GET.get('language', None)
 
     context = {
-        "metadata": metadata,
+        "metadata": dataset,
         "is_service_feed": False,
     }
     default_context = DefaultContext(request=request,

@@ -1,21 +1,23 @@
+{% load i18n %}
 <entry>
-    <title>{{entry.title}}</title>
-    <inspire_dls:spatial_dataset_identifier_code>
-        {{entry.id}}
-    </inspire_dls:spatial_dataset_identifier_code>
-    <inspire_dls:spatial_dataset_identifier_namespace>
-        {{entry.metadata_url}}
-    </inspire_dls:spatial_dataset_identifier_namespace>
+    <title>{% if entry.dataset_for.service.service_type.name == 'wms' %}{% trans 'INSPIRE Download Dataset Feed: ' %}{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource.' %}{% endif %}</title>
+    {% if is_service_feed %}
+    <inspire_dls:spatial_dataset_identifier_code>{{entry.dataset.spatial_dataset_identifier_code}}</inspire_dls:spatial_dataset_identifier_code>
+    <inspire_dls:spatial_dataset_identifier_namespace>{{entry.dataset.spatial_dataset_identifier_namespace}}</inspire_dls:spatial_dataset_identifier_namespace>
+    <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed-metadata' entry.dataset_for.id %}?spatial_dataset_identifier_code={{entry.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entry.dataset.spatial_dataset_identifier_namespace}}" rel="describedby" type="application/xml"/>
+    <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed' entry.dataset_for.id %}?spatial_dataset_identifier_code={{entry.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entry.dataset.spatial_dataset_identifier_namespace}}" rel="alternate" type="application/atom+xml"/>
+    {% else%}
+        {% for link in entry.download_links %}
+        <link rel="section" href="{{link.href}}" type="{{link.type}}" hreflang="{{link.language}}" title="{{link.title}}" bbox="{{link.bbox}}"/>
+        {% endfor %}
+    {% endif %}
 
-    <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed-metadata' entry.id %}" rel="describedby" type="application/xml"/>
-    <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed' entry.id %}" rel="alternate" type="application/atom+xml"/>
+    <id>{{ROOT_URL}}{% url 'atom:get-dataset-feed' entry.dataset_for.id %}?spatial_dataset_identifier_code={{entry.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entry.dataset.spatial_dataset_identifier_namespace}}</id>
 
-    <id>{% url 'atom:get-service-feed' metadata.id %}</id>
-
-    <rights>{{entry.access_constraints}}</rights>
-    <updated>{{entry.last_modified}}</updated>
+    <rights>{{entry.dataset.access_constraints}}</rights>
+    <updated>{{entry.dataset.last_modified}}</updated>
     <georss:polygon>
-        {{ entry.bounding_geometry.convex_hull.coords.0.0.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.0.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.1.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.1.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.2.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.2.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.3.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.3.0 }} {{ entry.bounding_geometry.convex_hull.coords.0.4.1 }} {{ entry.bounding_geometry.convex_hull.coords.0.4.0 }}
+        {{ entry.dataset.bounding_geometry.convex_hull.coords.0.0.1 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.0.0 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.1.1 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.1.0 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.2.1 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.2.0 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.3.1 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.3.0 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.4.1 }} {{ entry.dataset.bounding_geometry.convex_hull.coords.0.4.0 }}
     </georss:polygon>
     <category></category>
 </entry>

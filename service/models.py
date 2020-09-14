@@ -542,6 +542,8 @@ class ExternalAuthentication(models.Model):
 class Metadata(Resource):
     from MrMap.validators import validate_metadata_enum_choices
     identifier = models.CharField(max_length=1000, null=True)
+    spatial_dataset_identifier_code = models.CharField(max_length=1000, null=True)
+    spatial_dataset_identifier_namespace = models.CharField(max_length=1000, null=True)
     title = models.CharField(max_length=1000)
     abstract = models.TextField(null=True, blank=True)
     online_resource = models.CharField(max_length=1000, null=True, blank=True)  # where the service data can be found

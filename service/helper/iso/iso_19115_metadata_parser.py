@@ -172,6 +172,7 @@ class ISOMetadata:
         self.dataset_id = 'undefined'
         code = xml_helper.try_get_text_from_xml_element(elem='//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString'.format(xpath_type), xml_elem=xml_obj)
         if code is not None and len(code) != 0:
+            print(f"#1 code found: {code}")
             # new implementation:
             # http://inspire.ec.europa.eu/file/1705/download?token=iSTwpRWd&usg=AOvVaw18y1aTdkoMCBxpIz7tOOgu
             # from 2017-03-02 - the MD_Identifier - see C.2.5 Unique resource identifier - it is separated with a slash - the codespace should be everything after the last slash
@@ -189,6 +190,7 @@ class ISOMetadata:
                 self.dataset_id = code
                 self.dataset_id_code_space = ""
         else:
+            print(f"#2 code found: {code}")
             # try to read code from RS_Identifier
             code = xml_helper.try_get_text_from_xml_element(elem='//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:RS_Identifier/gmd:code/gco:CharacterString'.format(xpath_type), xml_elem=xml_obj)
             code_space = xml_helper.try_get_text_from_xml_element(elem="//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:RS_Identifier/gmd:codeSpace/gco:CharacterString".format(xpath_type), xml_elem=xml_obj)
@@ -197,6 +199,7 @@ class ISOMetadata:
                 self.dataset_id_code_space = code_space
             else:
                 self.is_broken = True
+
 
     def _parse_xml_polygons(self, xml_obj: _Element, xpath_type: str):
         """ Parse the polygon information from the xml document
@@ -645,6 +648,9 @@ class ISOMetadata:
         metadata.identifier = self.file_identifier
         metadata.abstract = self.abstract
         metadata.access_constraints = self.access_constraints
+
+        metadata.spatial_dataset_identifier_code = self.dataset_id
+        metadata.spatial_dataset_identifier_namespace = self.dataset_id_code_space
 
         # Take the polygon with the largest area as bounding geometry
         if len(self.polygonal_extent_exterior) > 0:

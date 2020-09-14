@@ -4,22 +4,22 @@
       xmlns:georss="http://www.georss.org/georss"
       xmlns:inspire_dls="http://inspire.ec.europa.eu/schemas/inspire_dls/1.0"
       xml:lang="{{language}}">
-  <title>{% trans 'INSPIRE Download Service Feed for resource: ' %} {{metadata.title}}</title>
-  {% if metadata.abstract %}
-  <subtilte>{{metadata.abstract}}</subtilte>
+  <title>{% trans 'INSPIRE Download Service Feed for resource:' %} {{resource_metadata.title}}</title>
+  {% if resource_metadata.abstract %}
+  <subtilte>{{resource_metadata.abstract}}</subtilte>
   {% endif %}
-  <link href="{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed-metadata' metadata.id %}{% else %}{% url 'atom:get-dataset-feed-metadata' metadata.id %}{% endif %}" rel="describedby" type="application/xml"/>
-  <link href="{{ROOT_URL}}{% url 'atom:get-service-feed' metadata.id %}" rel="{% if is_service_feed %}self{% else %}up{% endif %}" type="application/atom+xml"/>
-  <link href="{{ROOT_URL}}{% url 'resource:get-metadata-html' metadata.id %}" rel="alternate" type="text/html"/>
+  <link href="{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed-metadata' resource_metadata.id %}{% else %}{% url 'atom:get-dataset-feed-metadata' resource_metadata.id %}{% endif %}" rel="describedby" type="application/xml"/>
+  <link href="{{ROOT_URL}}{% url 'atom:get-service-feed' resource_metadata.id %}" rel="{% if is_service_feed %}self{% else %}up{% endif %}" type="application/atom+xml"/>
+  <link href="{{ROOT_URL}}{% url 'resource:get-metadata-html' resource_metadata.id %}" rel="alternate" type="text/html"/>
   {% if is_service_feed %}
-  <link href="{{ROOT_URL}}{% url 'atom:get-opensearch-description' metadata.id %}" rel="search" type="application/opensearchdescription+xml"/>
+  <link href="{{ROOT_URL}}{% url 'atom:opensearch' %}?q=resource:{{resource_metadata.id}}" rel="search" type="application/opensearchdescription+xml"/>
   {% endif %}
-  <id>{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed' metadata.id %}{% else %}{% url 'atom:get-dataset-feed' metadata.id %}{% endif %}</id>
-  <rights>{{metadata.access_constraints}}</rights>
-  <updated>{{metadata.last_modified}}</updated>
+  <id>{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed' resource_metadata.id %}{% else %}{% url 'atom:get-dataset-feed' resource_metadata.id %}{% endif %}</id>
+  <rights>{{resource_metadata.access_constraints}}</rights>
+  <updated>{{resource_metadata.last_modified}}</updated>
   <author>
-    <name>{{metadata.contact.organization_name}}</name>
-    <email>{{metadata.contact.email}}</email>
+    <name>{{resource_metadata.contact.organization_name}}</name>
+    <email>{{resource_metadata.contact.email}}</email>
   </author>
   {% for entry in entries %}
   {% include 'entry.xml' %}
