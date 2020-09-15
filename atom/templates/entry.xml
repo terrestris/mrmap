@@ -8,9 +8,12 @@
     <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed' entry.dataset_for.id %}?spatial_dataset_identifier_code={{entry.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entry.dataset.spatial_dataset_identifier_namespace}}" rel="alternate" type="application/atom+xml"/>
     {% else%}
     <title>{% if entry.dataset_for.service.service_type.name == 'wms' %}{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource in the crs ' %}{{entry.crs_list.0.prefix}}{{entry.crs_list.0.code}}{% trans ' and format ' %}{{entry.format}}{% endif %}</title>
+    {% if entry.download_links|length > 1 %}
+    <content>{% trans 'Dataset is partitioned in' %} {{entry.download_links|length}} {% trans 'pieces.' %}</content>
+    {% endif %}
     {% for link in entry.download_links %}
     {% autoescape off %}
-    <link rel="{% if entry.download_links|length > 1 %}section{% else %}alternate{% endif %}" href="{{link.href}}" type="{{link.type}}" hreflang="{{link.language}}" title="{{link.title}}" bbox="{{link.bbox}}"/>
+    <link rel="{% if entry.download_links|length > 1 %}section{% else %}alternate{% endif %}" href="{{link.href}}" type="{{link.type}}" hreflang="{{link.language}}" title="{{entry.dataset.title}}{% trans 'datasource in the crs ' %}{{entry.crs_list.0.prefix}}{{entry.crs_list.0.code}}{% trans ' and format ' %}{{entry.format}} {% trans 'part' %} {{ forloop.counter }} {% trans 'of' %} {{entry.download_links|length}}" bbox="{{link.bbox}}"/>
     {% endautoescape %}
     {% endfor %}
     {% endif %}

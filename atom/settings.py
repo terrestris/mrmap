@@ -17,3 +17,4 @@ DEFAULT_MAX_WIDTH = 2048  # the value is representing pixel
 DEFAULT_MAX_HEIGHT = 2048  # the value is representing pixel
 CONVERSION_FACTOR_INCH_TO_METER = 0.0254
 METER_BASED_CRS = 3857
+WGS_84_CRS = 4326

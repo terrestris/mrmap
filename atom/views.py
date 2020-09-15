@@ -7,7 +7,7 @@ from django.template.loader import render_to_string
 
 from MrMap.responses import DefaultContext
 from atom.settings import DEFAULT_IMAGE_RESOLUTION, DEFAULT_MAX_WIDTH, DEFAULT_MAX_HEIGHT, \
-    CONVERSION_FACTOR_INCH_TO_METER, METER_BASED_CRS
+    CONVERSION_FACTOR_INCH_TO_METER, METER_BASED_CRS, WGS_84_CRS
 from service.helper.enums import MetadataEnum, SpatialResolutionTypesEnum
 from service.models import Metadata, Service
 
@@ -157,18 +157,19 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     tiles = []
     for row_counter in range(rows):
         for col_counter in range(columns):
-            minx_wms = point_min_x_y.convex_hull.coords[0] + col_counter * meter_step_x
-            miny_wms = point_min_x_y.convex_hull.coords[1] + row_counter * meter_step_y
-            max_x_wms = point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
-            max_y_wms = point_min_x_y.convex_hull.coords[1] + (col_counter + 1) * meter_step_y
+            point_1_x = point_min_x_y.convex_hull.coords[0] + col_counter * meter_step_x
+            point_1_y = point_min_x_y.convex_hull.coords[1] + row_counter * meter_step_y
+            point_2_x = point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
+            point_2_y = point_min_x_y.convex_hull.coords[1] + (row_counter + 1) * meter_step_y
 
-            tiles.append(f"{minx_wms} {miny_wms}, {minx_wms} {max_y_wms}, {max_x_wms} {max_y_wms}, {max_x_wms} {miny_wms}, {minx_wms} {miny_wms}")
+            tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
 
     for crs in resource_metadata.reference_system.all():
         download_links = []
         crs_name = ""
         for tile in tiles:
             bbox = GEOSGeometry(f'SRID={METER_BASED_CRS};POLYGON(({tile}))').transform(ct=crs.code, clone=True)
+            bbox_wgs_84 = GEOSGeometry(bbox).transform(ct=WGS_84_CRS, clone=True) if bbox.crs.srid != WGS_84_CRS else bbox
             crs_name = bbox.crs.name
 
             download_links.append({"href": f"{resource_metadata.online_resource}REQUEST=GetMap&"
@@ -182,11 +183,12 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
                                            f"WIDTH={DEFAULT_MAX_WIDTH}&"
                                            f"HEIGHT={DEFAULT_MAX_HEIGHT}",
                                    "type": image_tiff_format,
+                                   "bbox": "".join([f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
                                    })
 
-        if dataset.bounding_geometry.srid != 4326:
+        if dataset.bounding_geometry.srid != WGS_84_CRS:
             # the polygon for georss needs to be in wgs 84 lat-lon
-            polygon_wgs_84 = GEOSGeometry(dataset.bounding_geometry).transform(ct=4326, clone=True)
+            polygon_wgs_84 = GEOSGeometry(dataset.bounding_geometry).transform(ct=WGS_84_CRS, clone=True)
         else:
             polygon_wgs_84 = dataset.bounding_geometry
 
