@@ -1,12 +1,14 @@
 from math import ceil
 
 from django.contrib.gis.geos import GEOSGeometry
-from django.http import HttpRequest, HttpResponse, HttpResponseNotFound, HttpResponseBadRequest
+from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 
 from MrMap.responses import DefaultContext
-from service.helper.enums import MetadataEnum, OGCServiceEnum, SpatialResolutionTypesEnum
+from atom.settings import DEFAULT_IMAGE_RESOLUTION, DEFAULT_MAX_WIDTH, DEFAULT_MAX_HEIGHT, \
+    CONVERSION_FACTOR_INCH_TO_METER, METER_BASED_CRS
+from service.helper.enums import MetadataEnum, SpatialResolutionTypesEnum
 from service.models import Metadata, Service
 
 
@@ -113,82 +115,89 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             A list of entries
     """
     entries = []
-    if not dataset.spatial_res_value:
-        # Todo: we can't create downloadlinks without any informations about the resolution of the dataset
-        pass
+    image_tiff_format = resource_metadata.get_formats({"mime_type__icontains": "tiff"})
+
+    if not dataset.spatial_res_value or not image_tiff_format:
+        # we can't create downloadlinks without any informations about the resolution of the dataset
+        # if there are no image/tiff format, we also can't do it, cause only tiff has geo reference metadatas with it
+        return entries
+    # set mime type to tiff
+    image_tiff_format = image_tiff_format.first()
 
     # check up if the requested resource is a group layer
-    child_services = Service.objects.filter(parent_service=resource_metadata.service)
-    is_group_layer = False
-    if child_services:
-        # there are some sublayers... this is a group layer
-        is_group_layer = True
-
-    # Todo: if there are no image/tiff format, we don't can do it
-    image_tiff_format = resource_metadata.get_formats({"mime_type__icontains": "tiff"}).first()
-
-    image_resolution = 300  # dpi ToDo: move this parameter to settings.py
-    max_width = 1024  # pixel ToDo: move this parameter to settings.py
-    max_height = 1024  # pixel ToDo: move this parameter to settings.py
-
-    if dataset.spatial_res_type == SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value:
-        # the groud_resolution is given in scale denominator. We must convert it to real groud resolution
-        ground_resolution = float(dataset.spatial_res_value) / (0.0254 * image_resolution)  # 0.0254 converting factor from inch to meter
-    else:
-        ground_resolution = float(dataset.spatial_res_value)
+    is_group_layer = False if Service.objects.filter(parent_service=resource_metadata.service).count() == 0 else True
 
     convex_hull = dataset.bounding_geometry.convex_hull
 
-    from django.contrib.gis.geos import GEOSGeometry
-    min_x_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][0][0]} {convex_hull.coords[0][0][1]})').transform(ct=3857, clone=True)
-    max_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][1][0]} {convex_hull.coords[0][1][1]})').transform(ct=3857, clone=True)
-    max_x = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(ct=3857, clone=True)
-    diff_x = min_x_y.distance(max_x)  # result is in meter
-    diff_y = min_x_y.distance(max_y)  # result is in meter
+    # transform the convex_hull coords to epsg:3857 to measure the distances in meter
+    point_min_x_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][0][0]} {convex_hull.coords[0][0][1]})').transform(ct=METER_BASED_CRS, clone=True)
+    point_max_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][1][0]} {convex_hull.coords[0][1][1]})').transform(ct=METER_BASED_CRS, clone=True)
+    point_max_x = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(ct=METER_BASED_CRS, clone=True)
+    distance_x = point_min_x_y.distance(point_max_x)  # result is in meter
+    distance_y = point_min_x_y.distance(point_max_y)  # result is in meter
 
-    columns = ceil(diff_x / ground_resolution / max_width)
-    rows = ceil(diff_y / ground_resolution / max_height)
-
-    if columns > 1 or rows > 1:
-        # we can't get the dataset with one request by the given constraints.
-        pass
+    if dataset.spatial_res_type == SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value:
+        # the groud_resolution is given in scale denominator. We must convert it to real groud resolution
+        # pixel / meter (meter in reality)
+        ground_resolution = (DEFAULT_IMAGE_RESOLUTION / CONVERSION_FACTOR_INCH_TO_METER) / float(dataset.spatial_res_value) # 0.0254 converting factor from inch to meter
     else:
-        # nothing to to else. We can get the dataset by one request.
-        for crs in resource_metadata.reference_system.all():
-            # ToDo: dynamic bbox, width and height settings
+        ground_resolution = float(dataset.spatial_res_value)
 
-            extent_x = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.extent[0]} {convex_hull.extent[1]})').transform(ct=crs.code, clone=True)
-            extent_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.extent[2]} {convex_hull.extent[3]})').transform(ct=crs.code, clone=True)
+    # transform distance from meter based to pixel based
+    distance_x_in_pixel = distance_x * ground_resolution
+    distance_y_in_pixel = distance_y * ground_resolution
 
-            get_url = f"{resource_metadata.online_resource}REQUEST=GetMap&" \
-                      f"SERVICE={resource_metadata.service.service_type.name}&" \
-                      f"VERSION={resource_metadata.service.service_type.version}&" \
-                      f"LAYERS={resource_metadata.identifier}&" \
-                      f"SRS={crs.prefix}{crs.code}&" \
-                      f"TRANSPARENT=TRUE&" \
-                      f"FORMAT={image_tiff_format}&" \
-                      f"BBOX={extent_x.extent[0]},{extent_x.extent[1]},{extent_y.extent[2]},{extent_y.extent[3]}&" \
-                      f"WIDTH={max_width}&" \
-                      f"HEIGHT={max_height}"
+    # calculate how much tiles we need to get the complete dataset by the constraints of maximum image width and height and the ground resolution
+    columns = ceil(distance_x_in_pixel / DEFAULT_MAX_WIDTH)
+    rows = ceil(distance_y_in_pixel / DEFAULT_MAX_HEIGHT)
 
-            link = {"href": get_url,
-                    "type": image_tiff_format,
-                    }
+    meter_step_x = DEFAULT_MAX_WIDTH / ground_resolution  # pixel / pixel per meter = meter
+    meter_step_y = DEFAULT_MAX_HEIGHT / ground_resolution  # pixel / pixel per meter = meter
 
-            if dataset.bounding_geometry.srid != 4326:
-                # the polygon for georss needs to be in wgs 84 lat-lon
-                polygon_wgs_84 = GEOSGeometry(dataset.bounding_geometry).transform(ct=4326, clone=True)
-            else:
-                polygon_wgs_84 = dataset.bounding_geometry
+    tiles = []
+    for row_counter in range(rows):
+        for col_counter in range(columns):
+            minx_wms = point_min_x_y.convex_hull.coords[0] + col_counter * meter_step_x
+            miny_wms = point_min_x_y.convex_hull.coords[1] + row_counter * meter_step_y
+            max_x_wms = point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
+            max_y_wms = point_min_x_y.convex_hull.coords[1] + (col_counter + 1) * meter_step_y
 
-            entries.append({"dataset_for": resource_metadata,
-                            "dataset": dataset,
-                            "is_group_layer": is_group_layer,
-                            "download_links": [link, ],
-                            "crs_list": [{"version": crs.version, "code": crs.code, "name": extent_x.crs.name, "prefix": crs.prefix}, ],
-                            "format": image_tiff_format,
-                            "polygon": "".join([f"{tup[1]} {tup[0]} " for tup in polygon_wgs_84.convex_hull.coords[0]]),
-                            })
+            tiles.append(f"{minx_wms} {miny_wms}, {minx_wms} {max_y_wms}, {max_x_wms} {max_y_wms}, {max_x_wms} {miny_wms}, {minx_wms} {miny_wms}")
+
+    for crs in resource_metadata.reference_system.all():
+        download_links = []
+        crs_name = ""
+        for tile in tiles:
+            bbox = GEOSGeometry(f'SRID={METER_BASED_CRS};POLYGON(({tile}))').transform(ct=crs.code, clone=True)
+            crs_name = bbox.crs.name
+
+            download_links.append({"href": f"{resource_metadata.online_resource}REQUEST=GetMap&"
+                                           f"SERVICE={resource_metadata.service.service_type.name}&"
+                                           f"VERSION={resource_metadata.service.service_type.version}&"
+                                           f"LAYERS={resource_metadata.identifier}&"
+                                           f"SRS={crs.prefix}{crs.code}&"
+                                           f"TRANSPARENT=TRUE&"
+                                           f"FORMAT={image_tiff_format}&"
+                                           f"BBOX={bbox.extent[0]},{bbox.extent[1]},{bbox.extent[2]},{bbox.extent[3]}&"
+                                           f"WIDTH={DEFAULT_MAX_WIDTH}&"
+                                           f"HEIGHT={DEFAULT_MAX_HEIGHT}",
+                                   "type": image_tiff_format,
+                                   })
+
+        if dataset.bounding_geometry.srid != 4326:
+            # the polygon for georss needs to be in wgs 84 lat-lon
+            polygon_wgs_84 = GEOSGeometry(dataset.bounding_geometry).transform(ct=4326, clone=True)
+        else:
+            polygon_wgs_84 = dataset.bounding_geometry
+
+        entries.append({"dataset_for": resource_metadata,
+                        "dataset": dataset,
+                        "is_group_layer": is_group_layer,
+                        "download_links": download_links,
+                        "crs_list": [{"version": crs.version, "code": crs.code, "name": crs_name, "prefix": crs.prefix}, ],
+                        "format": image_tiff_format,
+                        "polygon": "".join([f"{tup[1]} {tup[0]} " for tup in polygon_wgs_84.convex_hull.coords[0]]),
+                        })
 
     return entries
 

@@ -10,7 +10,7 @@
     <title>{% if entry.dataset_for.service.service_type.name == 'wms' %}{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource in the crs ' %}{{entry.crs_list.0.prefix}}{{entry.crs_list.0.code}}{% trans ' and format ' %}{{entry.format}}{% endif %}</title>
     {% for link in entry.download_links %}
     {% autoescape off %}
-    <link rel="{% if athlete_list|length > 1 %}section{% else %}alternate{% endif %}" href="{{link.href}}" type="{{link.type}}" hreflang="{{link.language}}" title="{{link.title}}" bbox="{{link.bbox}}"/>
+    <link rel="{% if entry.download_links|length > 1 %}section{% else %}alternate{% endif %}" href="{{link.href}}" type="{{link.type}}" hreflang="{{link.language}}" title="{{link.title}}" bbox="{{link.bbox}}"/>
     {% endautoescape %}
     {% endfor %}
     {% endif %}
