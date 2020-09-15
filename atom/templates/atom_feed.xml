@@ -4,17 +4,17 @@
       xmlns:georss="http://www.georss.org/georss"
       xmlns:inspire_dls="http://inspire.ec.europa.eu/schemas/inspire_dls/1.0"
       xml:lang="{{language}}">
-  <title>{% trans 'INSPIRE Download Service Feed for resource:' %} {{resource_metadata.title}}</title>
+  <title>{% trans 'INSPIRE Download '%}{% if is_service_feed%}{% trans 'Service' %}{% else %}{% trans 'Dataset' %}{% endif %}{% trans ' Feed for resource:' %} {{resource_metadata.title}}</title>
   {% if resource_metadata.abstract %}
   <subtilte>{{resource_metadata.abstract}}</subtilte>
   {% endif %}
-  <link href="{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed-metadata' resource_metadata.id %}{% else %}{% url 'atom:get-dataset-feed-metadata' resource_metadata.id %}{% endif %}" rel="describedby" type="application/xml"/>
+  <link href="{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed-metadata' resource_metadata.id %}{% else %}{% url 'atom:get-dataset-feed-metadata' resource_metadata.id %}?spatial_dataset_identifier_code={{entries.0.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entries.0.dataset.spatial_dataset_identifier_namespace}}{% endif %}" rel="describedby" type="application/xml"/>
   <link href="{{ROOT_URL}}{% url 'atom:get-service-feed' resource_metadata.id %}" rel="{% if is_service_feed %}self{% else %}up{% endif %}" type="application/atom+xml"/>
   <link href="{{ROOT_URL}}{% url 'resource:get-metadata-html' resource_metadata.id %}" rel="alternate" type="text/html"/>
   {% if is_service_feed %}
   <link href="{{ROOT_URL}}{% url 'atom:opensearch' %}?q=resource:{{resource_metadata.id}}" rel="search" type="application/opensearchdescription+xml"/>
   {% endif %}
-  <id>{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed' resource_metadata.id %}{% else %}{% url 'atom:get-dataset-feed' resource_metadata.id %}{% endif %}</id>
+  <id>{{ROOT_URL}}{% if is_service_feed %}{% url 'atom:get-service-feed' resource_metadata.id %}{% else %}{% url 'atom:get-dataset-feed' resource_metadata.id %}?spatial_dataset_identifier_code={{entries.0.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entries.0.dataset.spatial_dataset_identifier_namespace}}{% endif %}</id>
   <rights>{{resource_metadata.access_constraints}}</rights>
   <updated>{{resource_metadata.last_modified}}</updated>
   <author>

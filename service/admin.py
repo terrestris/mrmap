@@ -200,7 +200,7 @@ class ServiceTypeAdmin(admin.ModelAdmin):
 class ServiceAdmin(admin.ModelAdmin):
     list_display = ('id', 'is_active', 'is_deleted',  'service_type', 'metadata_link', 'parent_service_link', 'published_for', 'created_by')
     list_filter = ('is_active', 'is_deleted', 'service_type', 'published_for')
-    search_fields = ['id', 'metadata__title']
+    search_fields = ['id', 'metadata__title', 'metadata__id', ]
     readonly_fields = ("operation_urls",)
     ordering = ["-created"]
 
