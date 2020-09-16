@@ -32,7 +32,7 @@ from service.helper.logger_helper import prepare_proxy_log_filter
 from service.helper.ogc.operation_request_handler import OGCOperationRequestHandler
 from service.helper.service_comparator import ServiceComparator
 from service.helper.service_helper import get_resource_capabilities
-from service.settings import DEFAULT_SRS_STRING, PREVIEW_MIME_TYPE_DEFAULT, PLACEHOLDER_IMG_PATH
+from service.settings import DEFAULT_SRS_STRING, PREVIEW_MIME_TYPE_DEFAULT, PLACEHOLDER_IMG_PATH, service_logger
 from service.tables import WmsTableWms, WmsLayerTableWms, WfsServiceTable, PendingTasksTable, UpdateServiceElements, \
     DatasetTable, CswTable
 from service.tasks import async_log_response
@@ -1297,7 +1297,7 @@ def get_operation_result(request: HttpRequest, proxy_log: ProxyLog, metadata_id)
             # we do not allow the direct call of operations on child elements, such as layers!
             # if the request tries that, we directly redirect it to the parent service!
             parent_md = metadata.service.parent_service.metadata
-            return get_operation_result(request=request, id=parent_md.id)
+            return get_operation_result(request=request, metadata_id=str(parent_md.id))
 
         # We need to check if at least one of the requested layers is secured.
         md_secured = metadata.is_secured
@@ -1350,7 +1350,8 @@ def get_operation_result(request: HttpRequest, proxy_log: ProxyLog, metadata_id)
     except ReadTimeout:
         return HttpResponse(status=408, content=CONNECTION_TIMEOUT.format(request.build_absolute_uri()))
     except Exception as e:
-        return HttpResponse(status=500, content=e)
+        service_logger.exception(e)
+        return HttpResponse(status=500, content="Something went wrong. See service logs for details.")
 
 
 @resolve_metadata_public_id

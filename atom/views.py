@@ -130,6 +130,11 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     convex_hull = dataset.bounding_geometry.convex_hull
 
     # transform the convex_hull coords to epsg:3857 to measure the distances in meter
+    # X/Y Coordinate system:
+    # |max_y-------------
+    # |------------------
+    # |------------------
+    # |min_x_y------max_x
     point_min_x_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][0][0]} {convex_hull.coords[0][0][1]})').transform(ct=METER_BASED_CRS, clone=True)
     point_max_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][1][0]} {convex_hull.coords[0][1][1]})').transform(ct=METER_BASED_CRS, clone=True)
     point_max_x = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(ct=METER_BASED_CRS, clone=True)
@@ -172,7 +177,7 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             bbox_wgs_84 = GEOSGeometry(bbox).transform(ct=WGS_84_CRS, clone=True) if bbox.crs.srid != WGS_84_CRS else bbox
             crs_name = bbox.crs.name
 
-            download_links.append({"href": f"{resource_metadata.online_resource}REQUEST=GetMap&"
+            download_links.append({"href": f"{resource_metadata.get_current_operations_url()}REQUEST=GetMap&"
                                            f"SERVICE={resource_metadata.service.service_type.name}&"
                                            f"VERSION={resource_metadata.service.service_type.version}&"
                                            f"LAYERS={resource_metadata.identifier}&"

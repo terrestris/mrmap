@@ -628,6 +628,18 @@ class Metadata(Resource):
     def __str__(self):
         return "{} ({}) #{}".format(self.title, self.metadata_type, self.id)
 
+    def get_current_operations_url(self):
+        """ Returns the current operations url
+
+        If use_proxy_uri flag is True, we return the Mr. Map operations url.
+        Else we just return the original operations url
+
+        """
+        if self.use_proxy_uri:
+            return f"{ROOT_URL}{reverse('resource:metadata-proxy-operation', args=(self.id, ))}?"
+        else:
+            return self.online_resource
+
     def get_formats(self, filter: dict = {}):
         """ Returns supported formats/MimeTypes.
 
