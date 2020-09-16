@@ -599,10 +599,10 @@ def get_service_preview(request: HttpRequest, metadata_id):
         layer = md.service.layer
 
     layer = layer.identifier
-    if md.bounding_geometry.area == 0:
+    if md.bounding_box.area == 0:
         bbox = md.find_max_bounding_box()
     else:
-        bbox = md.bounding_geometry
+        bbox = md.bounding_box
     bbox = str(bbox.extent).replace("(", "").replace(")", "")  # this is a little dumb, you may choose something better
 
     img_width = 200
@@ -722,7 +722,7 @@ def get_metadata_html(request: HttpRequest, metadata_id):
     if md.is_metadata_type(MetadataEnum.DATASET):
         base_template = 'metadata/base/dataset/dataset_metadata_as_html.html'
         params['contact'] = collect_contact_data(md.contact)
-        params['bounding_box'] = md.bounding_geometry
+        params['bounding_box'] = md.bounding_box
         params['dataset_metadata'] = md
         params['fees'] = md.fees
         params['licence'] = md.licence

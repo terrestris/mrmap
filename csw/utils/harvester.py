@@ -456,7 +456,7 @@ class Harvester:
         md.language_code = md_data_entry.get("language_code", None)
         md.metadata_type = md_data_entry.get("metadata_type", None)
         md.abstract = md_data_entry.get("abstract", None)
-        md.bounding_geometry = md_data_entry.get("bounding_geometry", None)
+        md.bounding_box = md_data_entry.get("bounding_box", None)
         formats = md_data_entry.get("formats", [])
         md.is_active = True
         md.capabilities_original_uri = md_data_entry.get("capabilities_original_url", None)
@@ -756,7 +756,7 @@ class Harvester:
                 # exception and replace , since it's quite easy
                 extent = [vertex.replace(",", ".") for vertex in extent]
                 try:
-                    bounding_geometry = GEOSGeometry(Polygon.from_bbox(bbox=extent), srid=DEFAULT_SRS)
+                    bounding_box = GEOSGeometry(Polygon.from_bbox(bbox=extent), srid=DEFAULT_SRS)
                 except Exception:
                     # Log malicious extent!
                     csw_logger.warning(
@@ -766,11 +766,11 @@ class Harvester:
                             extent
                         )
                     )
-                    bounding_geometry = DEFAULT_SERVICE_BOUNDING_BOX_EMPTY
+                    bounding_box = DEFAULT_SERVICE_BOUNDING_BOX_EMPTY
             else:
-                bounding_geometry = DEFAULT_SERVICE_BOUNDING_BOX_EMPTY
+                bounding_box = DEFAULT_SERVICE_BOUNDING_BOX_EMPTY
 
-            md_data_entry["bounding_geometry"] = bounding_geometry
+            md_data_entry["bounding_box"] = bounding_box
             md_data_entry["contact"] = self._create_contact_from_md_metadata(md_metadata)
             md_data_entry["formats"] = self._create_formats_from_md_metadata(md_metadata)
 

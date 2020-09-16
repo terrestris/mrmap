@@ -137,7 +137,7 @@ class OGCLayer:
             (float(self.capability_bbox_lat_lon["maxx"]), float(self.capability_bbox_lat_lon["miny"])),
             (float(self.capability_bbox_lat_lon["minx"]), float(self.capability_bbox_lat_lon["miny"]))
         )
-        metadata.bounding_geometry = Polygon(bounding_points)
+        metadata.bounding_box = Polygon(bounding_points)
 
         metadata.save()
 
@@ -168,7 +168,7 @@ class OGCLayer:
         layer.is_opaque = self.is_opaque
         layer.scale_min = self.capability_scale_hint.get("min")
         layer.scale_max = self.capability_scale_hint.get("max")
-        layer.bbox_lat_lon = metadata.bounding_geometry
+        layer.bbox_lat_lon = metadata.bounding_box
         layer.created_by = group
         layer.published_for = parent_service.published_for
         layer.parent_service = parent_service

@@ -11,15 +11,14 @@ import uuid
 from django.utils import timezone
 
 from dateutil.parser import parse
-from django.contrib.gis.geos import Polygon
+from django.contrib.gis.geos import Polygon, GEOSGeometry
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 from django.utils.timezone import utc
+from lxml import etree
 from lxml.etree import _Element, Element
-
 from MrMap.settings import XML_NAMESPACES, GENERIC_NAMESPACE_TEMPLATE
-from service.settings import INSPIRE_LEGISLATION_FILE, HTML_METADATA_URI_TEMPLATE, SERVICE_METADATA_URI_TEMPLATE, \
-    SERVICE_DATASET_URI_TEMPLATE
+from service.settings import INSPIRE_LEGISLATION_FILE
 from MrMap import utils
 from service.helper import xml_helper
 from service.helper.common_connector import CommonConnector
@@ -30,6 +29,10 @@ from structure.models import Organization, MrMapGroup
 
 
 class ISOMetadata:
+    """
+    A class used to represent an ISO conform metadata pared from xml,
+    by calling the get_metadata() function.
+    """
     def __init__(self, uri: str, origin: str = ResourceOriginEnum.CAPABILITIES.value):
         self.section = "all" # serviceIdentification, serviceProvider, operationMetadata, contents, all
 
@@ -62,8 +65,8 @@ class ISOMetadata:
             "max_x": None,
             "max_y": None,
         }
+        self.bounding_geometry = None
 
-        self.polygonal_extent_exterior = []
         self.tmp_extent_begin = None
         self.tmp_extent_end = None
 
@@ -172,7 +175,6 @@ class ISOMetadata:
         self.dataset_id = 'undefined'
         code = xml_helper.try_get_text_from_xml_element(elem='//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString'.format(xpath_type), xml_elem=xml_obj)
         if code is not None and len(code) != 0:
-            print(f"#1 code found: {code}")
             # new implementation:
             # http://inspire.ec.europa.eu/file/1705/download?token=iSTwpRWd&usg=AOvVaw18y1aTdkoMCBxpIz7tOOgu
             # from 2017-03-02 - the MD_Identifier - see C.2.5 Unique resource identifier - it is separated with a slash - the codespace should be everything after the last slash
@@ -190,7 +192,6 @@ class ISOMetadata:
                 self.dataset_id = code
                 self.dataset_id_code_space = ""
         else:
-            print(f"#2 code found: {code}")
             # try to read code from RS_Identifier
             code = xml_helper.try_get_text_from_xml_element(elem='//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:RS_Identifier/gmd:code/gco:CharacterString'.format(xpath_type), xml_elem=xml_obj)
             code_space = xml_helper.try_get_text_from_xml_element(elem="//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:RS_Identifier/gmd:codeSpace/gco:CharacterString".format(xpath_type), xml_elem=xml_obj)
@@ -199,7 +200,6 @@ class ISOMetadata:
                 self.dataset_id_code_space = code_space
             else:
                 self.is_broken = True
-
 
     def _parse_xml_polygons(self, xml_obj: _Element, xpath_type: str):
         """ Parse the polygon information from the xml document
@@ -211,17 +211,13 @@ class ISOMetadata:
              nothing
         """
         polygons = xml_helper.try_get_element_from_xml(xml_elem=xml_obj, elem='//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_BoundingPolygon/gmd:polygon/gml:MultiSurface'.format(xpath_type))
-        if len(polygons) > 0:
-            surface_elements = xml_helper.try_get_element_from_xml(xml_elem=xml_obj, elem="//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_BoundingPolygon/gmd:polygon/gml:MultiSurface/gml:surfaceMember".format(xpath_type))
-            for element in surface_elements:
-                self.polygonal_extent_exterior.append(self.parse_polygon(element))
-        else:
+        if len(polygons) < 1:
             polygons = xml_helper.try_get_text_from_xml_element(xml_obj, '//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_BoundingPolygon/gmd:polygon/gml:Polygon'.format(xpath_type))
-            if polygons is not None:
-                polygon = xml_helper.try_get_single_element_from_xml(xml_elem=xml_obj, elem="//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_BoundingPolygon/gmd:polygon".format(xpath_type))
-                self.polygonal_extent_exterior.append(self.parse_polygon(polygon))
-            else:
-                self.polygonal_extent_exterior.append(self.parse_bbox(self.bounding_box))
+        if polygons is not None:
+            self.bounding_geometry = GEOSGeometry.from_gml(gml_string=etree.tostring(polygons[0]))
+        else:
+            # if we can't get any polygon, we safe the bbox as the bounding_geometry
+            self.bounding_geometry = self.parse_bbox(self.bounding_box)
 
     def _parse_xml_legal_dates(self, xml_obj: Element):
         """ Parses existing CI_Date elements from the MD_DataIdentification element
@@ -489,69 +485,6 @@ class ISOMetadata:
             polygon = Polygon(bounding_points)
         return polygon
 
-    def parse_polygon(self, polygon_elem):
-        """ Creates points from continuous polygon points array
-
-        Args:
-            polygon: The etree xml element which holds the polygons
-        Returns:
-             polygon (Polygon): The polygon object created from the data
-        """
-        relative_ring_xpath = "./gml:Polygon/gml:exterior/gml:LinearRing/gml:posList"
-        relative_coordinate_xpath = "./gml:Polygon/gml:exterior/gml:LinearRing/gml:coordinates"
-        pos_list = xml_helper.try_get_element_from_xml(xml_elem=polygon_elem, elem=relative_ring_xpath)
-        min_x = 10000
-        max_x = 0
-        min_y = 100000
-        max_y = 0
-        if len(pos_list) > 0:
-            exterior_ring_points = xml_helper.try_get_text_from_xml_element(xml_elem=polygon_elem, elem=relative_ring_xpath)
-            if len(exterior_ring_points) > 0:
-                # posList is only space separated
-                points_list = exterior_ring_points.split(" ")
-                inner_points = ()
-                for i in range(int(len(points_list) / 2) - 1):
-                    x = float(points_list[2 * i])
-                    y = float(points_list[(2 * i) + 1])
-                    if x < min_x:
-                        min_x = x
-                    if x > max_x:
-                        max_x = x
-                    if y < min_y:
-                        min_y = y
-                    if y > max_y:
-                        max_y = y
-                    p = ((x, y),)
-                    inner_points = (inner_points) + p
-        else:
-            # try to read coordinates
-            exterior_ring_points = xml_helper.try_get_text_from_xml_element(xml_elem=polygon_elem, elem=relative_coordinate_xpath)
-            # two coordinates of one point are comma separated
-            # problems with ', ' or ' ,' -> must be deleted before
-            exterior_ring_points = exterior_ring_points.replace(', ', ',').replace(' ,', ',')
-            points_list = exterior_ring_points.split(" ")
-            inner_points = ()
-            for point in points_list:
-                point = point.split[","]
-                x = float(points_list[0])
-                y = float(points_list[1])
-                if x < min_x:
-                    min_x = x
-                if x > max_x:
-                    max_x = x
-                if y < min_y:
-                    min_y = y
-                if y > max_y:
-                    max_y = y
-                p = ((x, y),)
-                inner_points = (inner_points) + p
-        bounding_points = ((min_x, min_y), (min_x, max_y), (max_x, max_y), (max_x, min_y), (min_x, min_y))
-        if inner_points[0] != inner_points[len(inner_points)-1]:
-            # polygon is not closed!
-            inner_points = inner_points + (inner_points[0],)
-        polygon = Polygon(bounding_points, inner_points)
-        return polygon
-
     @transaction.atomic
     def to_db_model(self, type=MetadataEnum.DATASET.value, created_by: MrMapGroup = None):
         """ Get corresponding metadata object from database or create it if not found!
@@ -652,15 +585,9 @@ class ISOMetadata:
         metadata.spatial_dataset_identifier_code = self.dataset_id
         metadata.spatial_dataset_identifier_namespace = self.dataset_id_code_space
 
-        # Take the polygon with the largest area as bounding geometry
-        if len(self.polygonal_extent_exterior) > 0:
-            max_area_poly = None
-            for poly in self.polygonal_extent_exterior:
-                if max_area_poly is None:
-                    max_area_poly = poly
-                if max_area_poly.area < poly.area:
-                    max_area_poly = poly
-            metadata.bounding_geometry = max_area_poly
+        # save bounding polygons
+        metadata.bounding_geometry = self.bounding_geometry
+        metadata.bounding_box = self.parse_bbox(self.bounding_box)
 
         try:
             metadata.contact = Organization.objects.get_or_create(

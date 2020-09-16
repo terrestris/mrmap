@@ -25,7 +25,10 @@ from MrMap.settings import XML_NAMESPACES, GENERIC_NAMESPACE_TEMPLATE
 
 
 class Iso19115MetadataBuilder:
-
+    """
+    A class used to build ISO confirm metadata from our django db model,
+    by calling the generate_service_metadata() function.
+    """
     def __init__(self, md_id: int, metadata_type: MetadataEnum, use_legislation_amendment=False):
         from service.models import Metadata, FeatureType
         self.metadata = Metadata.objects.get(id=md_id)
@@ -1235,7 +1238,7 @@ class Iso19115MetadataBuilder:
         Returns:
              ret_elem (_Element): The requested xml element
         """
-        bbox = self.metadata.bounding_geometry
+        bbox = self.metadata.bounding_box
         if bbox is None:
             bbox = self.metadata.find_max_bounding_box()
         if bbox is None:

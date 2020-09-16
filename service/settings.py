@@ -8,7 +8,7 @@ Created on: 23.09.19
 
 import os
 
-from django.contrib.gis.geos import Polygon, GEOSGeometry
+from django.contrib.gis.geos import Polygon, GEOSGeometry, MultiPolygon
 from django.utils.translation import gettext_lazy as _
 
 from MrMap.settings import BASE_DIR, HTTP_OR_SSL, HOST_NAME, STATIC_ROOT
@@ -68,6 +68,10 @@ DEFAULT_SRS_STRING = "{}:{}".format(DEFAULT_SRS_FAMILY, DEFAULT_SRS)
 # Default service bounding box
 DEFAULT_SERVICE_BOUNDING_BOX = GEOSGeometry(Polygon.from_bbox([5.866699, 48.908059, 8.76709, 50.882243]), srid=DEFAULT_SRS)
 DEFAULT_SERVICE_BOUNDING_BOX_EMPTY = GEOSGeometry(Polygon.from_bbox([0.0, 0.0, 0.0, 0.0]), srid=DEFAULT_SRS)
+DEFAULT_POLYGON_EMPTY = Polygon(((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0),))
+DEFAULT_MULTIPOLYGON_EMPTY = MultiPolygon(DEFAULT_POLYGON_EMPTY, DEFAULT_POLYGON_EMPTY)
+DEFAULT_BOUNDING_BOX = Polygon(((-90.0, -180.0), (-90.0, 180.0), (90.0, 180.0), (90.0, -180.0), (-90.0, -180.0), ))
+
 
 ALLOWED_SRS = [
     4326,

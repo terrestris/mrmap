@@ -42,7 +42,7 @@ def collect_featuretype_data(md: Metadata):
         params['fees'] = md.featuretype.parent_service.metadata.fees
         params['licence'] = md.featuretype.parent_service.metadata.licence
 
-    params['bounding_box'] = md.bounding_geometry
+    params['bounding_box'] = md.bounding_box
     params['name_of_the_resource'] = md.identifier
     params['featuretype'] = md.featuretype
     params['abstract'] = md.featuretype.parent_service.metadata.abstract
@@ -65,7 +65,7 @@ def collect_layer_data(md: Metadata, request: HttpRequest):
     params['layer'] = md.service.layer
     params['name_of_the_resource'] = md.service.layer.identifier
     params['is_queryable'] = md.service.layer.is_queryable
-    params['bounding_box'] = md.bounding_geometry
+    params['bounding_box'] = md.bounding_box
 
     if md.service.parent_service:
         params['parent_service'] = md.service.parent_service
@@ -125,7 +125,7 @@ def collect_wms_root_data(md: Metadata, request: HttpRequest):
         parent_layer=None,
     )
 
-    params['bounding_box'] = md.bounding_geometry
+    params['bounding_box'] = md.bounding_box
     params['layer'] = layer
     params['name_of_the_resource'] = layer.identifier
     params['is_queryable'] = layer.is_queryable
@@ -182,7 +182,7 @@ def collect_wfs_root_data(md: Metadata, request: HttpRequest):
                                          request=request,)
 
     params['featuretypes'] = featuretype_table
-    params['bounding_box'] = md.bounding_geometry
+    params['bounding_box'] = md.bounding_box
 
     return params
 

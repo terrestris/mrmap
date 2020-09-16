@@ -795,7 +795,7 @@ class OGCWebMapService(OGCWebService):
         metadata.access_constraints = self.service_identification_accessconstraints
         metadata.fees = self.service_identification_fees
         if self.service_bounding_box is not None:
-            metadata.bounding_geometry = self.service_bounding_box
+            metadata.bounding_box = self.service_bounding_box
         metadata.identifier = self.service_file_identifier
         metadata.is_active = False
         metadata.created_by = group

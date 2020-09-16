@@ -34,7 +34,7 @@ from service.helper.crypto_handler import CryptoHandler
 from service.settings import DEFAULT_SERVICE_BOUNDING_BOX, EXTERNAL_AUTHENTICATION_FILEPATH, \
     SERVICE_OPERATION_URI_TEMPLATE, SERVICE_LEGEND_URI_TEMPLATE, SERVICE_DATASET_URI_TEMPLATE, COUNT_DATA_PIXELS_ONLY, \
     LOGABLE_FEATURE_RESPONSE_FORMATS, DIMENSION_TYPE_CHOICES, DEFAULT_MD_LANGUAGE, ISO_19115_LANG_CHOICES, DEFAULT_SRS, \
-    service_logger
+    service_logger, DEFAULT_MULTIPOLYGON_EMPTY, DEFAULT_POLYGON_EMPTY, DEFAULT_BOUNDING_BOX
 from structure.models import MrMapGroup, Organization, MrMapUser
 from service.helper import xml_helper
 
@@ -571,16 +571,8 @@ class Metadata(Resource):
     is_custom = models.BooleanField(default=False)
     is_inspire_conform = models.BooleanField(default=False)
     has_inspire_downloads = models.BooleanField(default=False)
-    bounding_geometry = models.PolygonField(default=Polygon(
-        (
-            (0.0, 0.0),
-            (0.0, 0.0),
-            (0.0, 0.0),
-            (0.0, 0.0),
-            (0.0, 0.0),
-        )
-    ))
-
+    bounding_geometry = models.MultiPolygonField(default=DEFAULT_MULTIPOLYGON_EMPTY)
+    bounding_box = models.PolygonField(default=DEFAULT_POLYGON_EMPTY)
     # security
     is_secured = models.BooleanField(default=False)
 
@@ -1495,17 +1487,12 @@ class Metadata(Resource):
 
         self.language_code = original_metadata_document.language
 
-        # Take the polygon with the largest area as bounding geometry
-        if len(original_metadata_document.polygonal_extent_exterior) > 0:
-            max_area_poly = None
-            for poly in original_metadata_document.polygonal_extent_exterior:
-                if max_area_poly is None:
-                    max_area_poly = poly
-                if max_area_poly.area < poly.area:
-                    max_area_poly = poly
-            self.bounding_geometry = max_area_poly
+        if original_metadata_document.bounding_geometry:
+            self.bounding_geometry = original_metadata_document.bounding_geometry
         else:
             self.bounding_geometry = Polygon([0.0, 0.0, 0.0, 0.0], srid=DEFAULT_SRS)
+
+        self.bounding_box = original_metadata_document.bounding_box
 
         keyword_list = []
         for keyword in original_metadata_document.keywords:
@@ -2952,15 +2939,7 @@ class Layer(Service):
     is_cascaded = models.BooleanField(default=False)
     scale_min = models.FloatField(default=0)
     scale_max = models.FloatField(default=0)
-    bbox_lat_lon = models.PolygonField(default=Polygon(
-        (
-            (-90.0, -180.0),
-            (-90.0, 180.0),
-            (90.0, 180.0),
-            (90.0, -180.0),
-            (-90.0, -180.0),
-        )
-    ))
+    bbox_lat_lon = models.PolygonField(default=DEFAULT_BOUNDING_BOX)
     iso_metadata = []
 
     def __init__(self, *args, **kwargs):
@@ -3003,25 +2982,25 @@ class Layer(Service):
     def get_inherited_bounding_geometry(self):
         """ Returns the biggest bounding geometry of the service.
 
-        Bounding geometries shall be inherited. We do not persist them directly into the layer objects, since we might
+        Bounding box shall be inherited. We do not persist them directly into the layer objects, since we might
         lose the geometry, that is specified by the single layer object.
         This function walks all the way up to the root layer of the service and returns the biggest bounding geometry.
         Since upper layer geometries must cover the ones of their children, these big geometry includes the children ones.
 
         Returns:
-             bounding_geometry (Polygon): A geometry object
+             bounding_box (Polygon): A geometry object
         """
-        bounding_geometry = self.metadata.bounding_geometry
+        bounding_box = self.metadata.bounding_box
         parent_layer = self.parent_layer
         while parent_layer is not None:
-            parent_geometry = parent_layer.metadata.bounding_geometry
-            if bounding_geometry.area > 0:
-                if parent_geometry.covers(bounding_geometry):
-                    bounding_geometry = parent_geometry
+            parent_bounding_box = parent_layer.metadata.bounding_box
+            if bounding_box.area > 0:
+                if parent_bounding_box.covers(bounding_box):
+                    bounding_box = parent_bounding_box
             else:
-                bounding_geometry = parent_geometry
+                bounding_box = parent_bounding_box
             parent_layer = parent_layer.parent_layer
-        return bounding_geometry
+        return bounding_box
 
     def get_style(self):
         """ Simple getter for the style of the current layer
@@ -3569,15 +3548,7 @@ class FeatureType(Resource):
     inspire_download = models.BooleanField(default=False)
     elements = models.ManyToManyField('FeatureTypeElement')
     namespaces = models.ManyToManyField('Namespace')
-    bbox_lat_lon = models.PolygonField(default=Polygon(
-        (
-            (-90.0, -180.0),
-            (-90.0, 180.0),
-            (90.0, 180.0),
-            (90.0, -180.0),
-            (-90.0, -180.0),
-        )
-    ))
+    bbox_lat_lon = models.PolygonField(default=DEFAULT_BOUNDING_BOX)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

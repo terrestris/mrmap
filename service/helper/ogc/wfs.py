@@ -482,7 +482,7 @@ class OGCWebFeatureService(OGCWebService):
                     (float(min_x), float(min_y)),
                 )
             )
-            f_t.metadata.bounding_geometry = bbox
+            f_t.metadata.bounding_box = bbox
             f_t.bbox_lat_lon = bbox
 
         # Output formats
@@ -720,7 +720,7 @@ class OGCWebFeatureService(OGCWebService):
         md.created_by = group
         md.capabilities_original_uri = self.service_connect_url
         if self.service_bounding_box is not None:
-            md.bounding_geometry = self.service_bounding_box
+            md.bounding_box = self.service_bounding_box
 
         # Save metadata record so we can use M2M or id of record later
         md.save()

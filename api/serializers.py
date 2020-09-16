@@ -476,9 +476,9 @@ def perform_catalogue_entry_serialization(md: Metadata) -> OrderedDict:
     additional_urls = md.additional_urls.all()
 
     # fetch bounding geometry beforehand
-    bounding_geometry = md.bounding_geometry
-    if bounding_geometry is None:
-        bounding_geometry = DEFAULT_SERVICE_BOUNDING_BOX_EMPTY
+    bounding_box = md.bounding_box
+    if bounding_box is None:
+        bounding_box = DEFAULT_SERVICE_BOUNDING_BOX_EMPTY
 
     try:
         if md.is_featuretype_metadata:
@@ -498,7 +498,7 @@ def perform_catalogue_entry_serialization(md: Metadata) -> OrderedDict:
     serialized["type"] = md.metadata_type
     serialized["title"] = md.title
     serialized["abstract"] = md.abstract
-    serialized["spatial_extent_geojson"] = bounding_geometry.geojson
+    serialized["spatial_extent_geojson"] = bounding_box.geojson
     serialized["online_resource_uri"] = md.online_resource
     serialized["capabilities_uri"] = md.capabilities_uri
     serialized["xml_metadata_uri"] = md.service_metadata_uri

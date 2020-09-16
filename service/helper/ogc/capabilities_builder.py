@@ -846,8 +846,8 @@ class CapabilityWMSBuilder(CapabilityXMLBuilder):
         reference_systems = layer.get_inherited_reference_systems()
 
         # Get bounding geometry object
-        bounding_geometry = md.bounding_geometry
-        bbox = md.bounding_geometry.extent
+        bounding_geometry = md.bounding_box
+        bbox = bounding_geometry.extent
 
         # Prevent a situation where the bbox would be 0, by taking the parent service bbox.
         # We must(!) take the parent service root layer bounding geometry, since this information is the most reliable
@@ -1377,8 +1377,8 @@ class CapabilityWMS130Builder(CapabilityWMSBuilder):
         reference_systems = layer.get_inherited_reference_systems()
 
         # wms:EX_GeographicBoundingBox
-        bounding_geometry = md.bounding_geometry
-        bbox = md.bounding_geometry.extent
+        bounding_geometry = md.bounding_box
+        bbox = bounding_geometry.extent
 
         # Prevent a situation where the bbox would be 0, by taking the parent service bbox.
         # We must(!) take the parent service root layer bounding geometry, since this information is the most reliable
@@ -1780,7 +1780,7 @@ class CapabilityWFSBuilder(CapabilityXMLBuilder):
             nothing
         """
         try:
-            bbox = feature_type_obj.metadata.bounding_geometry.extent
+            bbox = feature_type_obj.metadata.bounding_box.extent
             bbox_elem = xml_helper.create_subelement(
                 upper_elem,
                 "{}WGS84BoundingBox".format(self.default_ns),
@@ -2161,9 +2161,9 @@ class CapabilityWFS100Builder(CapabilityWFSBuilder):
         Returns:
             nothing
         """
-        bounding_geom = self.metadata.bounding_geometry
-        bounding_geom.transform(self.feature_type_list.default_srs.code)
-        extent = bounding_geom.extent
+        bounding_box = self.metadata.bounding_box
+        bounding_box.transform(self.feature_type_list.default_srs.code)
+        extent = bounding_box.extent
         xml_helper.create_subelement(
             upper_elem,
             "{}LatLongBoundingBox".format(self.default_ns),
@@ -2174,6 +2174,7 @@ class CapabilityWFS100Builder(CapabilityWFSBuilder):
                 "maxy": str(extent[3]),
             })
         )
+
 
 class CapabilityWFS110Builder(CapabilityWFSBuilder):
     def __init__(self, metadata: Metadata, force_version: str = None):

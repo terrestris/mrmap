@@ -317,7 +317,7 @@ class DublinCoreMetadataConverter(MetadataConverter):
         self._create_xml_from_map(record_elem, attribute_element_map)
 
         # Perform xml creation for complex elements
-        geometry = md.bounding_geometry if md.bounding_geometry is not None and md.bounding_geometry.area > 0 else md.find_max_bounding_box()
+        geometry = md.bounding_box if md.bounding_box is not None and md.bounding_box.area > 0 else md.find_max_bounding_box()
         bbox_elem = xml_helper.create_subelement(
             record_elem,
             "{}BoundingBox".format(self.ows_ns),
