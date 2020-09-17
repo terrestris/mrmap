@@ -127,7 +127,7 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     # check up if the requested resource is a group layer
     is_group_layer = False if Service.objects.filter(parent_service=resource_metadata.service).count() == 0 else True
 
-    convex_hull = dataset.bounding_geometry.convex_hull
+    convex_hull = dataset.bounding_box.convex_hull
 
     # transform the convex_hull coords to epsg:3857 to measure the distances in meter
     # X/Y Coordinate system:
@@ -167,6 +167,8 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             point_2_x = point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
             point_2_y = point_min_x_y.convex_hull.coords[1] + (row_counter + 1) * meter_step_y
 
+            # ToDo: check if the calculated bbox is part of the bounding_geometry of the dataset
+
             tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
 
     for crs in resource_metadata.reference_system.all():
@@ -191,11 +193,11 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
                                    "bbox": "".join([f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
                                    })
 
-        if dataset.bounding_geometry.srid != WGS_84_CRS:
+        if dataset.bounding_box.srid != WGS_84_CRS:
             # the polygon for georss needs to be in wgs 84 lat-lon
-            polygon_wgs_84 = GEOSGeometry(dataset.bounding_geometry).transform(ct=WGS_84_CRS, clone=True)
+            polygon_wgs_84 = GEOSGeometry(dataset.bounding_box).transform(ct=WGS_84_CRS, clone=True)
         else:
-            polygon_wgs_84 = dataset.bounding_geometry
+            polygon_wgs_84 = dataset.bounding_box
 
         entries.append({"dataset_for": resource_metadata,
                         "dataset": dataset,
