@@ -172,6 +172,8 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             tile_polygon = Polygon.from_bbox(bbox=(point_1_x, point_1_y, point_2_x, point_2_y))
 
             if tile_polygon.intersects(dataset_polygon):
+                # if we got an intersection, we have content in this tile.
+                # If not we would have an empty tile which we don't need
                 tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
 
     for crs in resource_metadata.reference_system.all():

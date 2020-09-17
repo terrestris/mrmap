@@ -11,7 +11,7 @@ import uuid
 from django.utils import timezone
 
 from dateutil.parser import parse
-from django.contrib.gis.geos import Polygon, GEOSGeometry
+from django.contrib.gis.geos import Polygon, MultiPolygon
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 from django.utils.timezone import utc
@@ -214,10 +214,10 @@ class ISOMetadata:
         if len(polygons) < 1:
             polygons = xml_helper.try_get_text_from_xml_element(xml_obj, '//gmd:MD_Metadata/gmd:identificationInfo/{}/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_BoundingPolygon/gmd:polygon/gml:Polygon'.format(xpath_type))
         if polygons is not None:
-            self.bounding_geometry = GEOSGeometry.from_gml(gml_string=etree.tostring(polygons[0]))
+            self.bounding_geometry = MultiPolygon.from_gml(gml_string=etree.tostring(polygons[0]))
         else:
             # if we can't get any polygon, we safe the bbox as the bounding_geometry
-            self.bounding_geometry = self.parse_bbox(self.bounding_box)
+            self.bounding_geometry = MultiPolygon(self.parse_bbox(self.bounding_box))
 
     def _parse_xml_legal_dates(self, xml_obj: Element):
         """ Parses existing CI_Date elements from the MD_DataIdentification element

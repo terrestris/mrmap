@@ -8,9 +8,7 @@ import time
 from celery import Task
 from django.contrib.gis.geos import Polygon, GEOSGeometry
 from lxml.etree import _Element
-
-from service.settings import DEFAULT_SRS, SERVICE_OPERATION_URI_TEMPLATE, SERVICE_METADATA_URI_TEMPLATE, \
-    HTML_METADATA_URI_TEMPLATE, service_logger
+from service.settings import DEFAULT_SRS, service_logger
 from MrMap.settings import XML_NAMESPACES, EXEC_TIME_PRINT, \
     MULTITHREADING_THRESHOLD, GENERIC_NAMESPACE_TEMPLATE
 from MrMap.messages import SERVICE_GENERIC_ERROR
