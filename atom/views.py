@@ -24,8 +24,27 @@ def index(request: HttpRequest):
     return None
 
 
-def create_service_entries_recursive(service: Service):
-    """ Checks all child layers recursive for datasets
+def _get_crs_systems(service: Service, dataset: Metadata):
+    """ Builds up a dict with informations about the crs.version, crs.code, crs.name and returns it.
+
+    Args:
+        service: The service for that we iterate all available crs's
+        dataset: the dataset for from that we get the crs
+    Returns:
+        dict: list of crs
+    """
+    crs_list = []
+    for geom in service.metadata.reference_system.all():
+        # workaround to get the crs name... # ToDo: maybe we could parse the name from the xml's and save them in our ReferenceSystem model
+        point = GEOSGeometry(
+            f'SRID={dataset.bounding_geometry.srid};POINT({dataset.bounding_geometry.convex_hull.coords[0][0][0]} {dataset.bounding_geometry.convex_hull.coords[0][0][1]})').transform(
+            ct=geom.code, clone=True)
+        crs_list.append({"version": "9.6.1", "code": geom.code, "name": point.crs.name})
+    return crs_list
+
+
+def create_service_entries_for_wms(service: Service):
+    """ Checks all child layers recursive for datasets and build up a list of entries for service feed.
     Args:
         service: The service we will check for datasets for all child layers
     Returns:
@@ -39,26 +58,45 @@ def create_service_entries_recursive(service: Service):
         # there are some sublayers... this is a group layer
         is_group_layer = True
         for child_service in child_services:
-            child_entries = create_service_entries_recursive(service=child_service)
+            child_entries = create_service_entries_for_wms(service=child_service)
             if len(child_entries) > 0:
                 for child_entry in child_entries:
                     entries.append(child_entry)
-    datasets = service.metadata.related_metadata.all().filter(metadata_to__metadata_type=MetadataEnum.DATASET.value,)
+    datasets = service.metadata.related_metadata.all().filter(metadata_to__metadata_type=MetadataEnum.DATASET.value, )
     if datasets:
-        # the are datasets for this group layer. We can create a dataset entry for this group layer.
+        # there are datasets for this group layer. We can create a dataset entry for this group layer.
         for dataset in datasets:
-            crs_list = []
-            for geom in service.metadata.reference_system.all():
-                # workaround to get the crs name... # ToDo: maybe we could parse the name from the xml's and save them in our ReferenceSystem model
-                point = GEOSGeometry(
-                    f'SRID={dataset.metadata_to.bounding_geometry.srid};POINT({dataset.metadata_to.bounding_geometry.convex_hull.coords[0][0][0]} {dataset.metadata_to.bounding_geometry.convex_hull.coords[0][0][1]})').transform(
-                    ct=geom.code, clone=True)
-                crs_list.append({"version": "9.6.1", "code": geom.code, "name": point.crs.name})
+            crs_list = _get_crs_systems(service=service, dataset=dataset.metadata_to)
 
             entries.append({
                 "dataset_for": service.metadata,
                 "dataset": dataset.metadata_to,
                 "is_group_layer": is_group_layer,
+                "crs_list": crs_list,
+            })
+
+    return entries
+
+
+def create_service_entries_for_wfs(service: Service):
+    """ Builds the entry list for service feed with all featuretypes of the root service.
+    Args:
+        service: The service from that we get all featuretypes
+    Returns:
+        A list of entries
+    """
+    entries = []
+
+    featuretypes = service.subelements
+    for featuretype in featuretypes:
+        datasets_of_featuretype = featuretype.metadata.related_metadata.all().filter(
+            metadata_to__metadata_type=MetadataEnum.DATASET.value, )
+        for dataset in datasets_of_featuretype:
+            crs_list = _get_crs_systems(service=service, dataset=dataset.metadata_to)
+
+            entries.append({
+                "dataset_for": featuretype.metadata,
+                "dataset": dataset.metadata_to,
                 "crs_list": crs_list,
             })
 
@@ -86,8 +124,9 @@ def get_service_feed(request: HttpRequest, metadata_id):
     entries = []
 
     if resource_metadata.service.is_wms:
-        #  this is a wms.. we need to collect all child_services
-        entries = create_service_entries_recursive(resource_metadata.service)
+        entries = create_service_entries_for_wms(resource_metadata.service)
+    if resource_metadata.service.is_wfs:
+        entries = create_service_entries_for_wfs(resource_metadata.service)
 
     # Todo: implement language parameter and logic to switch language
     language = request.GET.get('language', None)
@@ -135,9 +174,15 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     # |------------------
     # |------------------
     # |min_x_y------max_x
-    point_min_x_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][0][0]} {convex_hull.coords[0][0][1]})').transform(ct=METER_BASED_CRS, clone=True)
-    point_max_y = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][1][0]} {convex_hull.coords[0][1][1]})').transform(ct=METER_BASED_CRS, clone=True)
-    point_max_x = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(ct=METER_BASED_CRS, clone=True)
+    point_min_x_y = GEOSGeometry(
+        f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][0][0]} {convex_hull.coords[0][0][1]})').transform(
+        ct=METER_BASED_CRS, clone=True)
+    point_max_y = GEOSGeometry(
+        f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][1][0]} {convex_hull.coords[0][1][1]})').transform(
+        ct=METER_BASED_CRS, clone=True)
+    point_max_x = GEOSGeometry(
+        f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(
+        ct=METER_BASED_CRS, clone=True)
     distance_x = point_min_x_y.distance(point_max_x)  # result is in meter
     distance_y = point_min_x_y.distance(point_max_y)  # result is in meter
     # transform the dataset polygon also to epsg:3857 to check if the calculated tiles intersects the dataset_polyon
@@ -146,7 +191,8 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     if dataset.spatial_res_type == SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value:
         # the groud_resolution is given in scale denominator. We must convert it to real groud resolution
         # pixel / meter (meter in reality)
-        ground_resolution = (DEFAULT_IMAGE_RESOLUTION / CONVERSION_FACTOR_INCH_TO_METER) / float(dataset.spatial_res_value) # 0.0254 converting factor from inch to meter
+        ground_resolution = (DEFAULT_IMAGE_RESOLUTION / CONVERSION_FACTOR_INCH_TO_METER) / float(
+            dataset.spatial_res_value)  # 0.0254 converting factor from inch to meter
     else:
         ground_resolution = float(dataset.spatial_res_value)
 
@@ -174,14 +220,16 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             if tile_polygon.intersects(dataset_polygon):
                 # if we got an intersection, we have content in this tile.
                 # If not we would have an empty tile which we don't need
-                tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
+                tiles.append(
+                    f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
 
     for crs in resource_metadata.reference_system.all():
         download_links = []
         crs_name = ""
         for tile in tiles:
             bbox = GEOSGeometry(f'SRID={METER_BASED_CRS};POLYGON(({tile}))').transform(ct=crs.code, clone=True)
-            bbox_wgs_84 = GEOSGeometry(bbox).transform(ct=WGS_84_CRS, clone=True) if bbox.crs.srid != WGS_84_CRS else bbox
+            bbox_wgs_84 = GEOSGeometry(bbox).transform(ct=WGS_84_CRS,
+                                                       clone=True) if bbox.crs.srid != WGS_84_CRS else bbox
             crs_name = bbox.crs.name
 
             download_links.append({"href": f"{resource_metadata.get_current_operations_url()}REQUEST=GetMap&"
@@ -195,7 +243,8 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
                                            f"WIDTH={DEFAULT_MAX_WIDTH}&"
                                            f"HEIGHT={DEFAULT_MAX_HEIGHT}",
                                    "type": image_tiff_format,
-                                   "bbox": "".join([f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
+                                   "bbox": "".join(
+                                       [f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
                                    })
 
         if dataset.bounding_box.srid != WGS_84_CRS:
@@ -208,7 +257,8 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
                         "dataset": dataset,
                         "is_group_layer": is_group_layer,
                         "download_links": download_links,
-                        "crs_list": [{"version": crs.version, "code": crs.code, "name": crs_name, "prefix": crs.prefix}, ],
+                        "crs_list": [
+                            {"version": crs.version, "code": crs.code, "name": crs_name, "prefix": crs.prefix}, ],
                         "format": image_tiff_format,
                         "polygon": "".join([f"{tup[1]} {tup[0]} " for tup in polygon_wgs_84.convex_hull.coords[0]]),
                         })
@@ -232,12 +282,14 @@ def get_dataset_feed(request: HttpRequest, metadata_id):
         A http response from type application/atom+xml
     """
     resource_metadata = get_object_or_404(klass=Metadata,
-                                          id=metadata_id,)
+                                          id=metadata_id, )
 
     dataset = get_object_or_404(klass=Metadata,
-                                spatial_dataset_identifier_code=request.GET.get('spatial_dataset_identifier_code', None),
-                                spatial_dataset_identifier_namespace=request.GET.get('spatial_dataset_identifier_namespace', None),
-                                metadata_type=MetadataEnum.DATASET.value,)
+                                spatial_dataset_identifier_code=request.GET.get('spatial_dataset_identifier_code',
+                                                                                None),
+                                spatial_dataset_identifier_namespace=request.GET.get(
+                                    'spatial_dataset_identifier_namespace', None),
+                                metadata_type=MetadataEnum.DATASET.value, )
 
     # Todo: implement language parameter and logic to switch language
     language = request.GET.get('language', None)
@@ -307,7 +359,7 @@ def open_search(request: HttpRequest):
     elif accept_format == 'application/opensearchdescription+xml':
         # return the opensearch description xml
         metadata = get_object_or_404(klass=Metadata,
-                                     id=spatial_dataset_identifier_code,)
+                                     id=spatial_dataset_identifier_code, )
 
         if metadata.metadata_type == MetadataEnum.DATASET.value:
             datasets = [metadata, ]
@@ -335,7 +387,7 @@ def open_search(request: HttpRequest):
         if not accept_format or accept_format == '*/*':
             content += 'No HTTP_ACCEPT Header was provided'
 
-        return HttpResponseBadRequest(content=content,)
+        return HttpResponseBadRequest(content=content, )
 
 
 def get_dataset(request: HttpRequest, metadata_id):
@@ -360,8 +412,4 @@ def get_dataset(request: HttpRequest, metadata_id):
     language = request.GET.get('language', None)
     crs = request.GET.get('crs', None)
 
-
     return None
-
-
-

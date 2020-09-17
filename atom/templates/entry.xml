@@ -1,13 +1,21 @@
 {% load i18n %}
 <entry>
     {% if is_service_feed %}
-    <title>{% if entry.dataset_for.service.service_type.name == 'wms' %}{% trans 'INSPIRE Download Dataset Feed: ' %}{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource.' %}{% endif %}</title>
+    {% if entry.dataset_for.service.service_type.name == 'wms' %}
+    <title>{% trans 'INSPIRE Download Dataset Feed: ' %}{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource.' %}</title>
+    {% elif entry.dataset_for.service.service_type.name == 'wfs'%}
+    <title>{% trans 'INSPIRE Download Dataset Feed: ' %}% trans 'Featuretype '%}{{entry.dataset_for.title}} - {% trans 'generated from' %} WFS {% trans 'datasource.' %}</title>
+    {% endif %}
     <inspire_dls:spatial_dataset_identifier_code>{{entry.dataset.spatial_dataset_identifier_code}}</inspire_dls:spatial_dataset_identifier_code>
     <inspire_dls:spatial_dataset_identifier_namespace>{{entry.dataset.spatial_dataset_identifier_namespace}}</inspire_dls:spatial_dataset_identifier_namespace>
     <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed-metadata' entry.dataset_for.id %}?spatial_dataset_identifier_code={{entry.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entry.dataset.spatial_dataset_identifier_namespace}}" rel="describedby" type="application/xml"/>
     <link href="{{ROOT_URL}}{% url 'atom:get-dataset-feed' entry.dataset_for.id %}?spatial_dataset_identifier_code={{entry.dataset.spatial_dataset_identifier_code}}&amp;spatial_dataset_identifier_namespace={{entry.dataset.spatial_dataset_identifier_namespace}}" rel="alternate" type="application/atom+xml"/>
     {% else%}
-    <title>{% if entry.dataset_for.service.service_type.name == 'wms' %}{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource in the crs ' %}{{entry.crs_list.0.prefix}}{{entry.crs_list.0.code}}{% trans ' and format ' %}{{entry.format}}{% endif %}</title>
+    {% if entry.dataset_for.service.service_type.name == 'wms' %}
+    <title>{% if entry.is_group_layer %}{% trans 'Grouplayer '%}{% else %}{% trans 'Layer '%}{% endif %}{{entry.dataset_for.title}} - {% trans 'generated from' %} WMS {% trans 'datasource in the crs ' %}{{entry.crs_list.0.prefix}}{{entry.crs_list.0.code}}{% trans ' and format ' %}{{entry.format}}</title>
+    {% elif entry.dataset_for.service.service_type.name == 'wfs'%}
+    <title>{% trans 'Featuretype '%}{{entry.dataset_for.title}} - {% trans 'generated from' %} WFS {% trans 'datasource in the crs ' %}{{entry.crs_list.0.prefix}}{{entry.crs_list.0.code}}{% trans ' and format ' %}{{entry.format}}</title>
+    {% endif %}
     {% if entry.download_links|length > 1 %}
     <content>{% trans 'Dataset is partitioned in' %} {{entry.download_links|length}} {% trans 'pieces.' %}</content>
     {% endif %}
