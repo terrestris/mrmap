@@ -1313,9 +1313,9 @@ def get_operation_result(request: HttpRequest, proxy_log: ProxyLog, metadata_id)
                 # at least one requested layer could not be found in the database
                 return HttpResponse(status=404, content=SERVICE_LAYER_NOT_FOUND)
         if md_secured:
-            response_dict = operation_handler.get_secured_operation_response(request, metadata, proxy_log=proxy_log)
+            response_dict = operation_handler.get_secured_operation_response(metadata=metadata)
         else:
-            response_dict = operation_handler.get_operation_response(proxy_log=proxy_log)
+            response_dict = operation_handler.get_operation_response()
 
         response = response_dict.get("response", None)
         content_type = response_dict.get("response_type", "")

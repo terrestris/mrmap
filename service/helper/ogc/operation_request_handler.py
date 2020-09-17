@@ -1461,13 +1461,11 @@ class OGCOperationRequestHandler:
         self.filter_param = _filter
         self.new_params_dict["FILTER"] = self.filter_param
 
-    def get_secured_operation_response(self, request: HttpRequest, metadata: Metadata, proxy_log: ProxyLog):
+    def get_secured_operation_response(self, metadata: Metadata, ):
         """ Calls the operation of a service if it is secured.
 
         Args:
-            request (HttpRequest): The incoming request
             metadata (Metadata): The metadata object
-            proxy_log (ProxyLog): The logging object
         Returns:
 
         """
@@ -1548,14 +1546,13 @@ class OGCOperationRequestHandler:
 
         return response
 
-    def get_operation_response(self, uri: str = None, post_data: dict = None, proxy_log:ProxyLog = None, post_xml_body: str = None):
+    def get_operation_response(self, uri: str = None, post_data: dict = None, post_xml_body: str = None):
         """ Performs the request.
 
         This may be called after the security checks have passed or otherwise if no security checks had to be done.
 
         Args:
             uri (str): The operation uri
-            proxy_log (ProxyLog): The logging object
             post_data(dict): A key-value dict of the POST data
             post_xml_body (str): A post xml body
         Returns:
