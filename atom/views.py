@@ -1,6 +1,6 @@
 from math import ceil
 
-from django.contrib.gis.geos import GEOSGeometry
+from django.contrib.gis.geos import GEOSGeometry, Polygon
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
@@ -140,6 +140,8 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     point_max_x = GEOSGeometry(f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(ct=METER_BASED_CRS, clone=True)
     distance_x = point_min_x_y.distance(point_max_x)  # result is in meter
     distance_y = point_min_x_y.distance(point_max_y)  # result is in meter
+    # transform the dataset polygon also to epsg:3857 to check if the calculated tiles intersects the dataset_polyon
+    dataset_polygon = dataset.bounding_geometry.transform(ct=METER_BASED_CRS, clone=True)
 
     if dataset.spatial_res_type == SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value:
         # the groud_resolution is given in scale denominator. We must convert it to real groud resolution
@@ -167,9 +169,10 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             point_2_x = point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
             point_2_y = point_min_x_y.convex_hull.coords[1] + (row_counter + 1) * meter_step_y
 
-            # ToDo: check if the calculated bbox is part of the bounding_geometry of the dataset
+            tile_polygon = Polygon.from_bbox(bbox=(point_1_x, point_1_y, point_2_x, point_2_y))
 
-            tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
+            if tile_polygon.intersects(dataset_polygon):
+                tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
 
     for crs in resource_metadata.reference_system.all():
         download_links = []
