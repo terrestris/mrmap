@@ -43,7 +43,7 @@ def parse_xml(xml: str, encoding=None):
     return xml_obj
 
 
-def xml_to_string(xml_obj, pretty_print: bool = False):
+def xml_to_string(xml_obj: _Element, pretty_print: bool = False):
     """ Creates a string representation of a xml element
 
     Args:
@@ -95,7 +95,7 @@ def get_feature_type_elements_xml(title, service_type_version, service_type, uri
     return response
 
 
-def get_href_attribute(xml_elem):
+def get_href_attribute(xml_elem: _Element):
     """ Helping function which returns None or the href attribute.
 
     Since some xml documents use https for the w3.org reference,
@@ -119,7 +119,7 @@ def get_href_attribute(xml_elem):
     return xlink
 
 
-def try_get_single_element_from_xml(elem: str, xml_elem):
+def try_get_single_element_from_xml(elem: str, xml_elem: _Element):
     """ Wraps a try-except call to fetch a single element from an xml element
 
     Returns the first element of a result set. If the programmer knows what he/she does there should be only on element.
@@ -138,7 +138,7 @@ def try_get_single_element_from_xml(elem: str, xml_elem):
         return None
 
 
-def try_get_element_from_xml(elem: str, xml_elem):
+def try_get_element_from_xml(elem: str, xml_elem: _Element):
     """ Wraps a try-except call to fetch elements from an xml element
 
     Args:
@@ -149,13 +149,13 @@ def try_get_element_from_xml(elem: str, xml_elem):
     """
     ret_val = None
     try:
-        ret_val = xml_elem.xpath(elem, namespaces=XML_NAMESPACES)
+        ret_val = xml_elem.xpath(_path=elem, namespaces=XML_NAMESPACES)
     except AttributeError:
         pass
     return ret_val
 
 
-def try_get_attribute_from_xml_element(xml_elem, attribute: str, elem: str = None):
+def try_get_attribute_from_xml_element(xml_elem: _Element, attribute: str, elem: str = None):
     """ Returns the requested attribute of an xml element
 
     Args:
@@ -175,7 +175,8 @@ def try_get_attribute_from_xml_element(xml_elem, attribute: str, elem: str = Non
     except (IndexError, AttributeError) as e:
         return None
 
-def get_children_with_attribute(xml_elem, attribute: str, nearest_only: bool=False):
+
+def get_children_with_attribute(xml_elem: _Element, attribute: str, nearest_only: bool=False):
     """ Returns the next or all children which hold a specific attribute name
 
     Args:
@@ -192,7 +193,8 @@ def get_children_with_attribute(xml_elem, attribute: str, nearest_only: bool=Fal
     else:
         return children
 
-def set_attribute(xml_elem, attribute: str, value: str):
+
+def set_attribute(xml_elem: _Element, attribute: str, value: str):
     """ Set an attribute for a xml element
 
     Args:
@@ -205,7 +207,7 @@ def set_attribute(xml_elem, attribute: str, value: str):
     xml_elem.set(attribute, value)
 
 
-def try_get_text_from_xml_element(xml_elem, elem: str=None):
+def try_get_text_from_xml_element(xml_elem: _Element, elem: str=None):
     """ Returns the text of an xml element
 
     Args:
@@ -222,7 +224,7 @@ def try_get_text_from_xml_element(xml_elem, elem: str=None):
         return None
 
 
-def find_element_where_text(xml_obj, txt: str):
+def find_element_where_text(xml_obj: _Element, txt: str):
     """ Returns all elements that contain the given text
 
     Args:
@@ -234,7 +236,7 @@ def find_element_where_text(xml_obj, txt: str):
     return xml_obj.xpath("//*[text()='{}']/parent::*".format(txt), namespaces=XML_NAMESPACES)
 
 
-def find_element_where_attr(xml_obj, attr_name, attr_val):
+def find_element_where_attr(xml_obj: _Element, attr_name, attr_val):
     """ Returns all elements that contain the given text
 
     Args:
@@ -247,7 +249,7 @@ def find_element_where_attr(xml_obj, attr_name, attr_val):
     return xml_obj.xpath("//*[@{}='{}']/parent::*".format(attr_name, attr_val), namespaces=XML_NAMESPACES)
 
 
-def write_attribute(xml_elem, elem: str=None, attrib: str=None, txt: str=None):
+def write_attribute(xml_elem: _Element, elem: str=None, attrib: str=None, txt: str=None):
     """ Write new text to a xml attribute.
 
     Elem can be used to refer to a subelement of the current xml_elem
@@ -268,7 +270,7 @@ def write_attribute(xml_elem, elem: str=None, attrib: str=None, txt: str=None):
     return xml_elem
 
 
-def write_text_to_element(xml_elem, elem: str=None, txt: str=None):
+def write_text_to_element(xml_elem: _Element, elem: str=None, txt: str=None):
     """ Write new text to a xml element.
 
     Elem can be used to refer to a subelement of the current xml_elem

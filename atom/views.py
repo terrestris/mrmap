@@ -1,14 +1,21 @@
-from math import ceil
+import urllib
+from math import ceil, sqrt
 
-from django.contrib.gis.geos import GEOSGeometry, Polygon
+from django.contrib.gis.gdal import OGRGeometry
+from django.contrib.gis.geos import GEOSGeometry, Polygon, MultiPolygon
 from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 
 from MrMap.responses import DefaultContext
+from MrMap.sub_settings.dev_settings import GENERIC_NAMESPACE_TEMPLATE
 from atom.settings import DEFAULT_IMAGE_RESOLUTION, DEFAULT_MAX_WIDTH, DEFAULT_MAX_HEIGHT, \
-    CONVERSION_FACTOR_INCH_TO_METER, METER_BASED_CRS, WGS_84_CRS
-from service.helper.enums import MetadataEnum, SpatialResolutionTypesEnum
+    CONVERSION_FACTOR_INCH_TO_METER, METER_BASED_CRS, WGS_84_CRS, MAXIMUM_FEATURE_COUNT
+from service.helper import xml_helper
+from service.helper.common_connector import CommonConnector
+from service.helper.enums import MetadataEnum, SpatialResolutionTypesEnum, OGCServiceVersionEnum, OGCOperationEnum, \
+    OGCServiceEnum
+from service.helper.ogc.wfs import OGCWebFeatureServiceFactory
 from service.models import Metadata, Service
 
 
@@ -145,6 +152,140 @@ def get_service_feed(request: HttpRequest, metadata_id):
                         content_type="application/atom+xml")
 
 
+class ConvexHullMetricInfo:
+    """
+    This class hold's the transformed metric system based info's of the given geometry
+    """
+    def __init__(self, geometry: GEOSGeometry):
+        # transforms the convex_hull coords to epsg:3857 to measure the distances in meter
+        # X/Y Coordinate system:
+        # |max_y-------------
+        # |------------------
+        # |------------------
+        # |min_x_y------max_x
+        self.point_min_x_y = GEOSGeometry(
+            f'SRID={geometry.srid};POINT({geometry.convex_hull.coords[0][0][0]} {geometry.convex_hull.coords[0][0][1]})').transform(
+            ct=METER_BASED_CRS, clone=True)
+        self.point_max_y = GEOSGeometry(
+            f'SRID={geometry.srid};POINT({geometry.convex_hull.coords[0][1][0]} {geometry.convex_hull.coords[0][1][1]})').transform(
+            ct=METER_BASED_CRS, clone=True)
+        self.point_max_x = GEOSGeometry(
+            f'SRID={geometry.srid};POINT({geometry.convex_hull.coords[0][3][0]} {geometry.convex_hull.coords[0][3][1]})').transform(
+            ct=METER_BASED_CRS, clone=True)
+        self.distance_x = self.point_min_x_y.distance(self.point_max_x)  # result is in meter to calculate columns
+        self.distance_y = self.point_min_x_y.distance(self.point_max_y)  # result is in meter to calculate rows
+
+
+def _calculate_tiles_for_wms(dataset: Metadata):
+    x_y_infos = ConvexHullMetricInfo(geometry=dataset.bounding_box)
+
+    # transform the dataset polygon also to epsg:3857 to check if the calculated tiles intersects the dataset_polyon
+    dataset_polygon = dataset.bounding_geometry.transform(ct=METER_BASED_CRS, clone=True)
+
+    if dataset.spatial_res_type == SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value:
+        # the groud_resolution is given in scale denominator. We must convert it to 'real' groud resolution
+        # pixel / meter (meter in reality)
+        ground_resolution = (DEFAULT_IMAGE_RESOLUTION / CONVERSION_FACTOR_INCH_TO_METER) / float(
+            dataset.spatial_res_value)  # 0.0254 converting factor from inch to meter
+    else:
+        ground_resolution = float(dataset.spatial_res_value)
+
+    # ToDo: get the maxPixel from the capabilities document
+    # get meter step for tile calculation based on the default width and height
+    meter_step_x = DEFAULT_MAX_WIDTH / ground_resolution  # pixel / pixel per meter = meter
+    meter_step_y = DEFAULT_MAX_HEIGHT / ground_resolution  # pixel / pixel per meter = meter
+
+    # calculate how much tiles we need to get the complete dataset by the constraints of maximum image width and height and the ground resolution
+    columns = ceil(x_y_infos.distance_x * ground_resolution / DEFAULT_MAX_WIDTH)
+    rows = ceil(x_y_infos.distance_y * ground_resolution / DEFAULT_MAX_HEIGHT)
+
+    tiles = []
+    for row_counter in range(rows):
+        for col_counter in range(columns):
+            point_1_x = x_y_infos.point_min_x_y.convex_hull.coords[0] + col_counter * meter_step_x
+            point_1_y = x_y_infos.point_min_x_y.convex_hull.coords[1] + row_counter * meter_step_y
+            point_2_x = x_y_infos.point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
+            point_2_y = x_y_infos.point_min_x_y.convex_hull.coords[1] + (row_counter + 1) * meter_step_y
+
+            tile_polygon = Polygon.from_bbox(bbox=(point_1_x, point_1_y, point_2_x, point_2_y))
+
+            if tile_polygon.intersects(dataset_polygon):
+                # if we got an intersection, we have content in this tile.
+                # If not we would have an empty tile which we don't need
+                tiles.append(
+                    f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
+    return tiles
+
+
+def _calculate_tiles_for_wfs(featuretype_metadata: Metadata, dataset: Metadata):
+    # Todo: move this code to the OGCWebFeatureServiceFactory to have simple get hits function, maybe we need this again
+    """
+       wfs_service = OGCWebFeatureServiceFactory.get_ogc_wfs(version=featuretype_metadata.get_service_version(),
+                                                          service_connect_url=service.metadata.get_current_operations_url(),
+                                                          external_auth=featuretype_metadata.get_external_authentication_object())
+
+    """
+    service = featuretype_metadata.featuretype.parent_service
+    service_version = featuretype_metadata.get_service_version().value
+    if service_version != OGCServiceVersionEnum.V_1_0_0.value:
+        # this wfs supports counting features in a spatial extent. wfs v.1.0.0 doesn't support this.
+        if service_version == OGCServiceVersionEnum.V_2_0_2.value or \
+           service_version == OGCServiceVersionEnum.V_2_0_0.value:
+            types_param = "typeNames"
+        else:
+            types_param = "typeName"
+
+        request_url = f"{service.metadata.get_current_operations_url()}SERVICE=WFS&REQUEST=GetFeature&VERSION={service_version}&" \
+                      f"{types_param}={featuretype_metadata.identifier}&resultType=hits"
+
+        c = CommonConnector(url=request_url, external_auth=featuretype_metadata.get_external_authentication_object())
+        c.load()
+
+        xml_response = xml_helper.parse_xml(xml=c.content)
+
+        hits = xml_helper.try_get_attribute_from_xml_element(
+            xml_elem=xml_response,
+            elem="//" + GENERIC_NAMESPACE_TEMPLATE.format("FeatureCollection"),
+            attribute="numberOfFeatures" if service_version == OGCServiceVersionEnum.V_1_1_0.value else "numberMatched",
+        )
+
+        try:
+            hits = int(hits)
+        except:
+            hits = 0
+
+        # ToDo: get the maxFeatures from the capabilities document
+        # we assume, that the features of the requested featuretype are evenly distributed on the ground.
+        # So that's why we call it 'features per tile'
+        features_per_tile = ceil(hits / MAXIMUM_FEATURE_COUNT if hits > 0 else MAXIMUM_FEATURE_COUNT / MAXIMUM_FEATURE_COUNT)
+
+        x_y_infos = ConvexHullMetricInfo(geometry=dataset.bounding_box)
+
+        # transform the dataset polygon also to epsg:3857 to check if the calculated tiles intersects the dataset_polyon
+        dataset_polygon = dataset.bounding_geometry.transform(ct=METER_BASED_CRS, clone=True)
+
+        tile_square_size = sqrt((x_y_infos.distance_x * x_y_infos.distance_y) / features_per_tile)
+        rows = ceil(x_y_infos.distance_y / tile_square_size)
+        columns = ceil(x_y_infos.distance_x / tile_square_size)
+
+        tiles = []
+        for row_counter in range(rows):
+            for col_counter in range(columns):
+                point_1_x = x_y_infos.point_min_x_y.convex_hull.coords[0] + col_counter * tile_square_size
+                point_1_y = x_y_infos.point_min_x_y.convex_hull.coords[1] + row_counter * tile_square_size
+                point_2_x = x_y_infos.point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * tile_square_size
+                point_2_y = x_y_infos.point_min_x_y.convex_hull.coords[1] + (row_counter + 1) * tile_square_size
+
+                tile_polygon = Polygon.from_bbox(bbox=(point_1_x, point_1_y, point_2_x, point_2_y))
+
+                if tile_polygon.intersects(dataset_polygon):
+                    # if we got an intersection, we have content in this tile.
+                    # If not we would have an empty tile which we don't need
+                    tiles.append(f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
+
+        return tiles
+
+
 def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
     """ Checks all child layers recursive for datasets
         Args:
@@ -154,98 +295,102 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
             A list of entries
     """
     entries = []
-    image_tiff_format = resource_metadata.get_formats({"mime_type__icontains": "tiff"})
+    is_group_layer = None
+    if resource_metadata.get_service_type() == OGCServiceEnum.WMS.value:
+        image_tiff_format = resource_metadata.get_formats({"mime_type__icontains": "tiff"})
 
-    if not dataset.spatial_res_value or not image_tiff_format:
-        # we can't create downloadlinks without any informations about the resolution of the dataset
-        # if there are no image/tiff format, we also can't do it, cause only tiff has geo reference metadatas with it
-        return entries
-    # set mime type to tiff
-    image_tiff_format = image_tiff_format.first()
+        if not dataset.spatial_res_value or not image_tiff_format:
+            # we can't create downloadlinks without any informations about the resolution of the dataset
+            # if there are no image/tiff format, we also can't do it, cause only tiff has geo reference metadatas with it
+            return entries
+        # set mime type to tiff
+        request_format = image_tiff_format.first()
 
-    # check up if the requested resource is a group layer
-    is_group_layer = False if Service.objects.filter(parent_service=resource_metadata.service).count() == 0 else True
+        # check up if the requested resource is a group layer
+        is_group_layer = False if Service.objects.filter(
+            parent_service=resource_metadata.service).count() == 0 else True
 
-    convex_hull = dataset.bounding_box.convex_hull
+        tiles = _calculate_tiles_for_wms(dataset=dataset)
 
-    # transform the convex_hull coords to epsg:3857 to measure the distances in meter
-    # X/Y Coordinate system:
-    # |max_y-------------
-    # |------------------
-    # |------------------
-    # |min_x_y------max_x
-    point_min_x_y = GEOSGeometry(
-        f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][0][0]} {convex_hull.coords[0][0][1]})').transform(
-        ct=METER_BASED_CRS, clone=True)
-    point_max_y = GEOSGeometry(
-        f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][1][0]} {convex_hull.coords[0][1][1]})').transform(
-        ct=METER_BASED_CRS, clone=True)
-    point_max_x = GEOSGeometry(
-        f'SRID={convex_hull.srid};POINT({convex_hull.coords[0][3][0]} {convex_hull.coords[0][3][1]})').transform(
-        ct=METER_BASED_CRS, clone=True)
-    distance_x = point_min_x_y.distance(point_max_x)  # result is in meter
-    distance_y = point_min_x_y.distance(point_max_y)  # result is in meter
-    # transform the dataset polygon also to epsg:3857 to check if the calculated tiles intersects the dataset_polyon
-    dataset_polygon = dataset.bounding_geometry.transform(ct=METER_BASED_CRS, clone=True)
+        reference_systems = resource_metadata.reference_system.all()
+    elif resource_metadata.get_service_type() == OGCServiceEnum.WFS.value:
+        request_format = resource_metadata.get_formats().first()
 
-    if dataset.spatial_res_type == SpatialResolutionTypesEnum.SCALE_DENOMINATOR.value:
-        # the groud_resolution is given in scale denominator. We must convert it to real groud resolution
-        # pixel / meter (meter in reality)
-        ground_resolution = (DEFAULT_IMAGE_RESOLUTION / CONVERSION_FACTOR_INCH_TO_METER) / float(
-            dataset.spatial_res_value)  # 0.0254 converting factor from inch to meter
+        tiles = _calculate_tiles_for_wfs(featuretype_metadata=resource_metadata, dataset=dataset)
+
+        if resource_metadata.reference_system.all().count() == 0:
+            crs = resource_metadata.featuretype.default_srs
+            crs.name = crs.prefix + crs.code
+            reference_systems = [resource_metadata.featuretype.default_srs]
+        else:
+            reference_systems = resource_metadata.reference_system.all()
     else:
-        ground_resolution = float(dataset.spatial_res_value)
+        tiles = []
+        reference_systems = []
 
-    # transform distance from meter based to pixel based
-    distance_x_in_pixel = distance_x * ground_resolution
-    distance_y_in_pixel = distance_y * ground_resolution
-
-    # calculate how much tiles we need to get the complete dataset by the constraints of maximum image width and height and the ground resolution
-    columns = ceil(distance_x_in_pixel / DEFAULT_MAX_WIDTH)
-    rows = ceil(distance_y_in_pixel / DEFAULT_MAX_HEIGHT)
-
-    meter_step_x = DEFAULT_MAX_WIDTH / ground_resolution  # pixel / pixel per meter = meter
-    meter_step_y = DEFAULT_MAX_HEIGHT / ground_resolution  # pixel / pixel per meter = meter
-
-    tiles = []
-    for row_counter in range(rows):
-        for col_counter in range(columns):
-            point_1_x = point_min_x_y.convex_hull.coords[0] + col_counter * meter_step_x
-            point_1_y = point_min_x_y.convex_hull.coords[1] + row_counter * meter_step_y
-            point_2_x = point_min_x_y.convex_hull.coords[0] + (col_counter + 1) * meter_step_x
-            point_2_y = point_min_x_y.convex_hull.coords[1] + (row_counter + 1) * meter_step_y
-
-            tile_polygon = Polygon.from_bbox(bbox=(point_1_x, point_1_y, point_2_x, point_2_y))
-
-            if tile_polygon.intersects(dataset_polygon):
-                # if we got an intersection, we have content in this tile.
-                # If not we would have an empty tile which we don't need
-                tiles.append(
-                    f"{point_1_x} {point_1_y}, {point_1_x} {point_2_y}, {point_2_x} {point_2_y}, {point_2_x} {point_1_y}, {point_1_x} {point_1_y}")
-
-    for crs in resource_metadata.reference_system.all():
+    for crs in reference_systems:
         download_links = []
-        crs_name = ""
         for tile in tiles:
+            # the tile is based on the meter based crs epsg:3857.
+            # Cause on this fact we need to transform it to the posible requestable crs.
             bbox = GEOSGeometry(f'SRID={METER_BASED_CRS};POLYGON(({tile}))').transform(ct=crs.code, clone=True)
-            bbox_wgs_84 = GEOSGeometry(bbox).transform(ct=WGS_84_CRS,
-                                                       clone=True) if bbox.crs.srid != WGS_84_CRS else bbox
-            crs_name = bbox.crs.name
 
-            download_links.append({"href": f"{resource_metadata.get_current_operations_url()}REQUEST=GetMap&"
-                                           f"SERVICE={resource_metadata.service.service_type.name}&"
-                                           f"VERSION={resource_metadata.service.service_type.version}&"
-                                           f"LAYERS={resource_metadata.identifier}&"
-                                           f"SRS={crs.prefix}{crs.code}&"
-                                           f"TRANSPARENT=TRUE&"
-                                           f"FORMAT={image_tiff_format}&"
-                                           f"BBOX={bbox.extent[0]},{bbox.extent[1]},{bbox.extent[2]},{bbox.extent[3]}&"
-                                           f"WIDTH={DEFAULT_MAX_WIDTH}&"
-                                           f"HEIGHT={DEFAULT_MAX_HEIGHT}",
-                                   "type": image_tiff_format,
-                                   "bbox": "".join(
-                                       [f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
-                                   })
+            if bbox.srid != WGS_84_CRS:
+                # To specify the bbox attribute of the generated downloadlink we need to transform the bbox to WGS 84,
+                # cause this is required by georss.
+                bbox_wgs_84 = GEOSGeometry(bbox).transform(ct=WGS_84_CRS,
+                                                           clone=True) if bbox.crs.srid != WGS_84_CRS else bbox
+            else:
+                bbox_wgs_84 = bbox
+
+            if resource_metadata.get_service_type() == OGCServiceEnum.WMS.value:
+                download_links.append({"href": f"{resource_metadata.get_current_operations_url()}REQUEST=GetMap&"
+                                               f"SERVICE={resource_metadata.service.service_type.name}&"
+                                               f"VERSION={resource_metadata.service.service_type.version}&"
+                                               f"LAYERS={resource_metadata.identifier}&"
+                                               f"SRS={crs.prefix}{crs.code}&"
+                                               f"TRANSPARENT=TRUE&"
+                                               f"FORMAT={request_format}&"
+                                               f"BBOX={bbox.extent[0]},{bbox.extent[1]},{bbox.extent[2]},{bbox.extent[3]}&"
+                                               f"WIDTH={DEFAULT_MAX_WIDTH}&"
+                                               f"HEIGHT={DEFAULT_MAX_HEIGHT}",
+                                       "type": request_format,
+                                       "bbox": "".join(
+                                           [f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
+                                       })
+            elif resource_metadata.get_service_type() == OGCServiceEnum.WFS.value:
+                service_version = resource_metadata.get_service_version().value
+                if service_version == OGCServiceVersionEnum.V_2_0_2.value or \
+                   service_version == OGCServiceVersionEnum.V_2_0_0.value:
+                    types_param = "typeNames"
+                    bbox_filter = f'<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0">'\
+                                  f'<fes:Not>' \
+                                  f'<fes:Disjoint>'\
+                                  f'<fes:ValueReference>{resource_metadata.identifier}</fes:PropertyName>' \
+                                  f'{OGRGeometry(bbox.wkt).gml}' \
+                                  f'</fes:Disjoint>' \
+                                  f'</fes:Not>'\
+                                  f'</fes:Filter>'
+                else:
+                    types_param = "typeName"
+                    bbox_filter = f'<ogc:Filter xmlns:ogc="http://www.opengis.net/ogc"><ogc:BBOX>'\
+                                  f'<ogc:PropertyName>{resource_metadata.identifier}</ogc:PropertyName>'\
+                                  f'<gml:Box xmlns:gml="http://www.opengis.net/gml" srsName="{crs.prefix}{crs.code}">'\
+                                  f'<gml:coordinates decimal="." cs="," ts=" ">'\
+                                  f'{bbox.extent[0]},{bbox.extent[1]} {bbox.extent[2]},{bbox.extent[3]}'\
+                                  f'</gml:coordinates></gml:Box></ogc:BBOX></ogc:Filter>'
+
+                download_links.append({"href": f"{resource_metadata.featuretype.parent_service.metadata.get_current_operations_url()}REQUEST=GetFeature&"
+                                               f"SERVICE={resource_metadata.featuretype.parent_service.service_type.name}&"
+                                               f"VERSION={resource_metadata.featuretype.parent_service.service_type.version}&"
+                                               f"SRSNAME={crs.prefix}{crs.code}&"
+                                               f"{types_param}={resource_metadata.identifier}&"
+                                               f"BBOX={bbox.extent[0]},{bbox.extent[1]},{bbox.extent[2]},{bbox.extent[3]}&"
+                                               f"outputFormat={request_format}",
+                                       "type": request_format,
+                                       "bbox": "".join(
+                                           [f"{tup[1]} {tup[0]} " for tup in bbox_wgs_84.convex_hull.coords[0]]),
+                                       })
 
         if dataset.bounding_box.srid != WGS_84_CRS:
             # the polygon for georss needs to be in wgs 84 lat-lon
@@ -258,11 +403,10 @@ def create_dataset_entries(resource_metadata: Metadata, dataset: Metadata):
                         "is_group_layer": is_group_layer,
                         "download_links": download_links,
                         "crs_list": [
-                            {"version": crs.version, "code": crs.code, "name": crs_name, "prefix": crs.prefix}, ],
-                        "format": image_tiff_format,
+                            {"version": crs.version, "code": crs.code, "name": crs.name, "prefix": crs.prefix}, ],
+                        "format": request_format,
                         "polygon": "".join([f"{tup[1]} {tup[0]} " for tup in polygon_wgs_84.convex_hull.coords[0]]),
                         })
-
     return entries
 
 

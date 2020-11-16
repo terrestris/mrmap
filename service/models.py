@@ -1215,9 +1215,9 @@ class Metadata(Resource):
         if self.is_root():
             return self.service.service_type.name
         elif self.is_metadata_type(MetadataEnum.LAYER):
-            service_type = 'wms'
+            service_type = OGCServiceEnum.WMS.value
         elif self.is_metadata_type(MetadataEnum.FEATURETYPE):
-            service_type = 'wfs'
+            service_type = OGCServiceEnum.WFS.value
         return service_type
 
     def get_service_version(self) -> OGCServiceEnum:
