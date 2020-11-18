@@ -17,6 +17,11 @@ from api.settings import REST_FRAMEWORK
 from django.utils.translation import gettext_lazy as _
 
 
+ALLOWED_HOSTS = [
+    HOST_NAME,
+    "127.0.0.1",
+]
+
 # GIT repo links
 GIT_REPO_URI = "https://git.osgeo.org/gitea/GDI-RP/MrMap/src/branch/pre_master"
 GIT_GRAPH_URI = "https://git.osgeo.org/gitea/GDI-RP/MrMap/graph"
