@@ -1,42 +1,40 @@
 import csv
 import io
 import json
-import uuid
-
 import os
-from collections import OrderedDict
-
 import time
+import uuid
+from collections import OrderedDict
 from datetime import datetime
 from json import JSONDecodeError
 
 from PIL import Image
 from dateutil.parser import parse
+from django.contrib.gis.db import models
 from django.contrib.gis.geos import Polygon, GeometryCollection
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.contrib.gis.db import models
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
+from MrMap import utils
 from MrMap.cacher import DocumentCacher
 from MrMap.messages import PARAMETER_ERROR, LOGGING_INVALID_OUTPUTFORMAT
 from MrMap.settings import HTTP_OR_SSL, HOST_NAME, GENERIC_NAMESPACE_TEMPLATE, ROOT_URL, EXEC_TIME_PRINT
-from MrMap import utils
 from MrMap.validators import not_uuid
 from monitoring.models import MonitoringSetting, MonitoringRun
+from service.helper import xml_helper
 from service.helper.common_connector import CommonConnector
+from service.helper.crypto_handler import CryptoHandler
 from service.helper.enums import OGCServiceEnum, OGCServiceVersionEnum, MetadataEnum, OGCOperationEnum, DocumentEnum, \
     ResourceOriginEnum, CategoryOriginEnum, MetadataRelationEnum, HttpMethodEnum
-from service.helper.crypto_handler import CryptoHandler
 from service.settings import DEFAULT_SERVICE_BOUNDING_BOX, EXTERNAL_AUTHENTICATION_FILEPATH, \
     SERVICE_OPERATION_URI_TEMPLATE, SERVICE_LEGEND_URI_TEMPLATE, SERVICE_DATASET_URI_TEMPLATE, COUNT_DATA_PIXELS_ONLY, \
     LOGABLE_FEATURE_RESPONSE_FORMATS, DIMENSION_TYPE_CHOICES, DEFAULT_MD_LANGUAGE, ISO_19115_LANG_CHOICES, DEFAULT_SRS, \
     service_logger
 from structure.models import MrMapGroup, Organization, MrMapUser
-from service.helper import xml_helper
 
 
 class Resource(models.Model):
