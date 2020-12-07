@@ -113,6 +113,40 @@ class DatasetMetadataAutocomplete(autocomplete.Select2QuerySetView):
         return '{} #{}'.format(result.title, result.id)
 
 
+class LayerAutocomplete(autocomplete.Select2QuerySetView):
+    """ Provides an autocomplete functionality for layer metadata records
+
+    """
+    def get_queryset(self):
+        """ Getter for the matching layers
+
+        Returns:
+             layers (QuerySet): The matched layers
+        """
+        user = get_user(self.request)
+        if user is None:
+            return None
+
+        records = user.get_metadatas_as_qs(type=MetadataEnum.LAYER)
+        query = ""
+        if self.q:
+            # There are filtering parameters!
+            query = self.q
+        records = records.filter(
+            Q(title__icontains=query) |
+            Q(id__icontains=query)
+        )
+
+        return records
+
+    def get_result_label(self, result):
+        """
+            we need to override this function to show the id of the metadata object,
+            so the user can differentiate the results where title is equal.
+        """
+        return '{} #{}'.format(result.title, result.id)
+
+
 class ServiceMetadataAutocomplete(autocomplete.Select2QuerySetView):
     """ Provides an autocomplete functionality for dataset metadata records
 

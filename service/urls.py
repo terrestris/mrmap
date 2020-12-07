@@ -1,6 +1,6 @@
 from django.urls import path
 
-from service.mapcontext.views import get_mapcontext_atom, get_mapcontext_json
+from service.mapcontext.views import get_mapcontext_atom, get_mapcontext_json, add_mapcontext
 from service.views import *
 
 app_name = 'resource'
@@ -38,6 +38,7 @@ urlpatterns = [
     path('csw/', csw_index, name='csw-index'),
     path('datasets/', datasets_index, name='datasets-index'),
 
+    path('mapcontext/add/', add_mapcontext, name='add-mapcontext'),
     path('mapcontext/<context_id>/atom', get_mapcontext_atom, name='get-mapcontext-atom'),
     path('mapcontext/<context_id>/json', get_mapcontext_json, name='get-mapcontext-json'),
 

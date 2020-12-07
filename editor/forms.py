@@ -9,7 +9,7 @@ import json
 
 from dal import autocomplete
 from django.db.models import Q
-from django.forms import ModelMultipleChoiceField
+from django.forms import ModelMultipleChoiceField, ModelChoiceField
 from django.http import HttpResponseRedirect
 from django.urls import reverse, NoReverseMatch
 from django.utils.translation import gettext_lazy as _
@@ -124,6 +124,15 @@ class MetadataEditorForm(MrMapModelForm):
 
         user_helper.create_group_activity(self.instance.created_by, self.requesting_user, SERVICE_MD_EDITED,
                                           "{}: {}".format(parent_service.metadata.title, self.instance.title))
+
+
+class MetadataModelChoiceField(ModelChoiceField):
+    def label_from_instance(self, obj):
+        """
+            we need to override this function to show the id of the metadata object,
+            so the user can differentiate the results where title is equal.
+        """
+        return "{} #{}".format(obj.title, obj.id)
 
 
 class MetadataModelMultipleChoiceField(ModelMultipleChoiceField):
