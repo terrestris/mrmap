@@ -67,6 +67,8 @@ INSTALLED_APPS = [
     'django_nose',
     'mathfilters',
     'quality',
+    'mptt',
+    'service.mapcontext',
 ]
 if DEBUG:
     INSTALLED_APPS.append(

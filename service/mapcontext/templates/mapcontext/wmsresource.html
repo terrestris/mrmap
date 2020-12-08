@@ -1,0 +1,63 @@
+{% load static %}
+{% load mptt_tags %}
+
+<!-- Modal -->
+{% load bootstrap4 %}
+{% load i18n %}
+{# Usage: use with parameter on expanding template to declare show_modal, id_modal and form variable  #}
+<div class="modal {% if wizard.form.errors|length > 0  %} animated shake {% endif %} {% if fade_modal %} fade {% endif %}" id="id_modal_{{id_modal}}" data-backdrop="static" tabindex="-1" role="dialog"
+     aria-labelledby="id_modal_title_{{id_modal}}" aria-hidden="true"><!-- <modal> -->
+    <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document"><!-- <modal-dialog> -->
+        <div class="modal-content {{THEME.MODAL.BG_COLOR}} {{THEME.MODAL.TXT_COLOR}}"><!-- <modal-content> -->
+            <div class="modal-header"><!-- <modal-header> -->
+                <h5 class="modal-title" id="id_modal_title_{{id_modal}}"><!-- <modal-title> -->
+                    Map Context Tree
+                </h5><!-- </modal-title> -->
+                {% block modal-header %}
+                {% endblock %}
+                <a href="#" role="button" class="close" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </a>
+            </div><!-- </modal-header> -->
+
+            <div class="modal-body">
+                <form action="/your-name/" method="post">
+                    {% csrf_token %}
+                    {% bootstrap_form form %}
+                    <input type="submit" value="Submit" class="btn btn-primary">
+                </form>
+            </div>
+
+        </div><!-- </modal-content> -->
+    </div><!-- </modal-dialog> -->
+</div><!-- </modal> -->
+
+<div id="id_modal_sub" class="modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Modal title</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+            <label for="id_abstract">Beschreibung</label>
+            <input type="text" name="abstract" class="form-control is-invalid" placeholder="Beschreibung" title="" required id="id_abstract">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="application/javascript">
+    $('#id_modal_{{id_modal}}').modal('show');
+</script>
+
+<script type="text/javascript" src="{% static '/mapcontext/js/draggable_tree.js' %}">
+</script>

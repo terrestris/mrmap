@@ -8,6 +8,8 @@ Created on: 30.11.20
 import uuid
 
 from django.contrib.gis.db import models
+from mptt.fields import TreeForeignKey
+from mptt.models import MPTTModel
 
 from service.models import Resource, Layer
 
@@ -33,12 +35,10 @@ class MapContext(Resource):
 
 class MapResource(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    title = models.CharField(max_length=1000, null=False, blank=False)
+    #title = models.CharField(max_length=1000, null=False, blank=False)
     abstract = models.TextField(null=False, blank=False)
     update_date = models.DateTimeField(auto_now_add=True)
-    folder = models.CharField(max_length=1000, null=True, blank=True)
-    context = models.ForeignKey(MapContext, on_delete=models.CASCADE)
-    index = models.IntegerField(null=False, default=0)
+    folder = TreeForeignKey('MapResourceFolder', on_delete=models.CASCADE)
 
     # Additional possible parameters:
     # author
@@ -56,8 +56,6 @@ class MapResource(models.Model):
     # maxScaleDenominator
     # resourceMetadata
     # extension
-    class Meta:
-        ordering = ['index']
 
 
 class WmsOffering(models.Model):
@@ -68,3 +66,16 @@ class WmsOffering(models.Model):
     # content
     # styleSet
     # extension
+
+
+class MapResourceFolder(MPTTModel):
+    name = models.CharField(max_length=1000, null=False, blank=False)
+    context = models.ForeignKey(MapContext, on_delete=models.CASCADE)
+    parent = TreeForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_resource(self):
+        return self.mapresource_set.exists()

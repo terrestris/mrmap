@@ -7,22 +7,71 @@ Created on: 30.11.20
 """
 from owslib.owscontext.core import OwcContext, OwcResource, OwcOffering, OwcOperation
 
-from service.models import MapContext, MapResource, WmsOffering
+from .models import MapContext, MapResource, WmsOffering
+from .models import MapResourceFolder
+
+
+def get_resource_folder(context, folder_path):
+    path_segments = []
+    if folder_path:
+        path_segments = filter(None, folder_path.split("/"))
+    roots = MapResourceFolder.objects.filter(context=context).get_cached_trees()
+    node = None
+    if roots:
+        # we expect a single tree from the above query
+        node = roots[0]
+        for path_segment in path_segments:
+            node = get_subfolder_with_name(node, path_segment)
+            if not node:
+                return None
+    return node
+
+
+def get_subfolder_with_name(folder, name):
+    for child in folder.get_children():
+        if child.name == name:
+            return child
+    return None
+
+
+def check_folder_exists(target_folder, position, name):
+    parent_folder = target_folder
+    if position in ('left', 'right'):
+        parent_folder = target_folder.parent
+    return get_subfolder_with_name(parent_folder, name)
 
 
 def map_context(context: MapContext):
+    roots = MapResourceFolder.objects.filter(context__id=context.id) \
+        .prefetch_related('mapresource_set',
+                          'mapresource_set__wmsoffering_set',
+                          'mapresource_set__wmsoffering_set__layer',
+                          'mapresource_set__wmsoffering_set__layer__parent_service') \
+        .get_cached_trees()
     resources = []
-    for resource in context.mapresource_set.all():
-        resources.append(map_resource(resource))
+    if roots:
+        # we expect a single tree from the above query
+        for child in roots[0].get_children():
+            collect_resources(child, "", resources)
     return OwcContext(id=context.id.hex, update_date=context.last_modified, title=context.title, resources=resources)
 
 
-def map_resource(resource: MapResource):
+def collect_resources(folder, folder_path, resources):
+    if folder.is_leaf_node():
+        for resource in folder.mapresource_set.all():
+            resources.append(map_resource(resource, folder_path, folder.name))
+    else:
+        for child in folder.get_children():
+            collect_resources(child, folder_path + "/" + folder.name, resources)
+
+
+def map_resource(resource: MapResource, folder_path, title):
     offerings = []
     for offering in resource.wmsoffering_set.all():
         offerings.append(map_wms_offering(offering))
     return OwcResource(id=f"{resource.pk}",
-                       title=resource.title,
+                       title=title,
+                       folder=folder_path,
                        subtitle=resource.abstract,
                        update_date=resource.update_date,
                        offerings=offerings)

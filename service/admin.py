@@ -1,62 +1,72 @@
 from django.contrib import admin
-from django.utils.safestring import mark_safe
-
-from service.models import *
-from django.urls import reverse
 from django.template.defaultfilters import escape
+from django.urls import reverse
+from django.utils.safestring import mark_safe
+from mptt.admin import DraggableMPTTAdmin
+
+from service.mapcontext.models import MapContext, MapResource, WmsOffering, MapResourceFolder
+from service.models import *
 
 
 class CategoryOriginAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'uri', )
+    list_display = ('id', 'name', 'uri',)
     search_fields = ['id', 'name', 'uri', ]
 
 
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'type', 'title_EN', 'online_link', )
-    list_filter = ('type', )
+    list_display = ('id', 'type', 'title_EN', 'online_link',)
+    list_filter = ('type',)
     search_fields = ['id', 'type', 'title_EN', 'online_link', ]
 
 
 class DatasetAdmin(admin.ModelAdmin):
-    list_display = ('id', 'metadata_link', 'date_stamp', 'md_identifier_code', 'created_by_link', 'last_modified', )
-    list_filter = ('language_code', 'character_set_code', 'update_frequency_code', 'legal_restriction_code', 'created_by')
+    list_display = ('id', 'metadata_link', 'date_stamp', 'md_identifier_code', 'created_by_link', 'last_modified',)
+    list_filter = (
+        'language_code', 'character_set_code', 'update_frequency_code', 'legal_restriction_code', 'created_by')
     search_fields = ['id', 'metadata__title', 'md_identifier_code', 'date_stamp', 'created_by__name', 'last_modified', ]
 
     def metadata_link(self, obj):
-        return mark_safe('<a href="%s">%s</a>' % (reverse("admin:service_metadata_change", args=(obj.metadata.id,)), escape(obj.metadata)))
+        return mark_safe('<a href="%s">%s</a>' % (
+            reverse("admin:service_metadata_change", args=(obj.metadata.id,)), escape(obj.metadata)))
 
     metadata_link.allow_tags = True
     metadata_link.short_description = "metadata"
 
     def created_by_link(self, obj):
         if obj.created_by:
-            return mark_safe('<a href="%s">%s</a>' % (reverse("admin:structure_mrmapgroup_change", args=(obj.created_by.id,)), escape(obj.created_by)))
+            return mark_safe('<a href="%s">%s</a>' % (
+                reverse("admin:structure_mrmapgroup_change", args=(obj.created_by.id,)), escape(obj.created_by)))
         else:
             "-"
+
     created_by_link.allow_tags = True
     created_by_link.short_description = "created_by"
 
 
 class DimensionAdmin(admin.ModelAdmin):
     list_display = ("id", "type", "extent", "custom_name")
-    list_filter = ('type', )
+    list_filter = ('type',)
     search_fields = ['id', 'type', 'extent', 'custom_name', ]
 
 
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'metadata_link', 'document_type', 'is_original', 'is_active', 'created', 'created_by_link', 'last_modified')
-    list_filter = ('is_active', 'document_type', 'is_original', 'is_active', )
+    list_display = (
+        'id', 'metadata_link', 'document_type', 'is_original', 'is_active', 'created', 'created_by_link',
+        'last_modified')
+    list_filter = ('is_active', 'document_type', 'is_original', 'is_active',)
     search_fields = ['id', 'metadata__id', 'metadata__title', 'last_modified']
 
     def metadata_link(self, obj):
-        return mark_safe('<a href="%s">%s</a>' % (reverse("admin:service_metadata_change", args=(obj.metadata.id,)), escape(obj.metadata)))
+        return mark_safe('<a href="%s">%s</a>' % (
+            reverse("admin:service_metadata_change", args=(obj.metadata.id,)), escape(obj.metadata)))
 
     metadata_link.allow_tags = True
     metadata_link.short_description = "metadata"
 
     def created_by_link(self, obj):
         if obj.created_by:
-            return mark_safe('<a href="%s">%s</a>' % (reverse("admin:structure_mrmapgroup_change", args=(obj.created_by.id,)), escape(obj.created_by)))
+            return mark_safe('<a href="%s">%s</a>' % (
+                reverse("admin:structure_mrmapgroup_change", args=(obj.created_by.id,)), escape(obj.created_by)))
         else:
             "-"
 
@@ -72,7 +82,7 @@ class ExternalAuthenticationAdmin(admin.ModelAdmin):
 
 class FeatureTypeElementAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'type', 'created', 'created_by')
-    list_filter = ('created_by', )
+    list_filter = ('created_by',)
     search_fields = ['id', 'name', 'type', 'created', 'created_by__name', ]
 
 
@@ -88,9 +98,10 @@ class KeywordAdmin(admin.ModelAdmin):
 
 
 class LayerAdmin(admin.ModelAdmin):
-    list_display = ('id', 'metadata', 'identifier', 'parent_service', 'parent_layer', 'created', 'created_by', 'last_modified')
+    list_display = (
+        'id', 'metadata', 'identifier', 'parent_service', 'parent_layer', 'created', 'created_by', 'last_modified')
     list_filter = ('created_by',)
-    search_fields = ['id', 'metadata__title', 'identifier', 'created', 'created_by__name', 'last_modified',]
+    search_fields = ['id', 'metadata__title', 'identifier', 'created', 'created_by__name', 'last_modified', ]
 
 
 class MetadataAdmin(admin.ModelAdmin):
@@ -112,10 +123,11 @@ class MetadataAdmin(admin.ModelAdmin):
 class MetadataRelationAdmin(admin.ModelAdmin):
     list_display = ('id', 'relation_type', 'metadata_to_link')
     list_filter = ('relation_type',)
-    search_fields = ['metadata_to__title',]
+    search_fields = ['metadata_to__title', ]
 
     def metadata_to_link(self, obj):
-        return mark_safe('<a href="%s">%s</a>' % (reverse("admin:service_metadata_change", args=(obj.metadata_to.id,)), escape(obj.metadata_to)))
+        return mark_safe('<a href="%s">%s</a>' % (
+            reverse("admin:service_metadata_change", args=(obj.metadata_to.id,)), escape(obj.metadata_to)))
 
     metadata_to_link.allow_tags = True
     metadata_to_link.short_description = "metadata_to"
@@ -123,8 +135,8 @@ class MetadataRelationAdmin(admin.ModelAdmin):
 
 class MetadataTypeAdmin(admin.ModelAdmin):
     list_display = ('id', 'type',)
-    list_filter = ('type', )
-    search_fields = ['id', 'type',]
+    list_filter = ('type',)
+    search_fields = ['id', 'type', ]
 
 
 class TermsOfUseAdmin(admin.ModelAdmin):
@@ -132,9 +144,11 @@ class TermsOfUseAdmin(admin.ModelAdmin):
 
     def service_link(self, obj):
         if obj.service:
-            return mark_safe('<a href="%s">%s</a>' % (reverse("admin:service_service_change", args=(obj.service.id,)), escape(obj.service)))
+            return mark_safe('<a href="%s">%s</a>' % (
+                reverse("admin:service_service_change", args=(obj.service.id,)), escape(obj.service)))
         else:
             return ''
+
     service_link.allow_tags = True
     service_link.short_description = "service"
 
@@ -146,8 +160,8 @@ class MimeTypeAdmin(admin.ModelAdmin):
 
 
 class ModuleAdmin(admin.ModelAdmin):
-    list_display = ('id', 'type', )
-    list_filter = ('type', )
+    list_display = ('id', 'type',)
+    list_filter = ('type',)
     search_fields = ['id', 'type', ]
 
 
@@ -158,8 +172,9 @@ class NamespaceAdmin(admin.ModelAdmin):
 
 
 class ProxyLogAdmin(admin.ModelAdmin):
-    list_display = ('id', 'metadata', 'operation', 'user', 'response_wms_megapixel', 'response_wfs_num_features', 'timestamp')
-    list_filter = ('operation', )
+    list_display = (
+        'id', 'metadata', 'operation', 'user', 'response_wms_megapixel', 'response_wfs_num_features', 'timestamp')
+    list_filter = ('operation',)
     search_fields = ['id', 'metadata__title', 'timestamp', ]
 
 
@@ -171,7 +186,7 @@ class ReferenceSystemAdmin(admin.ModelAdmin):
 
 class RequestOperationAdmin(admin.ModelAdmin):
     list_display = ('id', 'operation_name',)
-    list_filter = ('operation_name', )
+    list_filter = ('operation_name',)
     search_fields = ['id', 'operation_name', ]
 
 
@@ -193,28 +208,33 @@ class ServiceUrlAdmin(admin.ModelAdmin):
 
 class ServiceTypeAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'version')
-    list_filter = ('version', 'name', )
+    list_filter = ('version', 'name',)
     search_fields = ['id', 'version', 'name']
 
 
 class ServiceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'is_active', 'is_deleted',  'service_type', 'metadata_link', 'parent_service_link', 'published_for', 'created_by')
+    list_display = (
+        'id', 'is_active', 'is_deleted', 'service_type', 'metadata_link', 'parent_service_link', 'published_for',
+        'created_by')
     list_filter = ('is_active', 'is_deleted', 'service_type', 'published_for')
     search_fields = ['id', 'metadata__title']
     readonly_fields = ("operation_urls",)
     ordering = ["-created"]
 
     def metadata_link(self, obj):
-        return mark_safe('<a href="%s">%s</a>' % (reverse("admin:service_metadata_change", args=(obj.metadata.id,)), escape(obj.metadata)))
+        return mark_safe('<a href="%s">%s</a>' % (
+            reverse("admin:service_metadata_change", args=(obj.metadata.id,)), escape(obj.metadata)))
 
     metadata_link.allow_tags = True
     metadata_link.short_description = "metadata"
 
     def parent_service_link(self, obj):
         if obj.parent_service:
-            return mark_safe('<a href="%s">%s</a>' % (reverse("admin:service_service_change", args=(obj.parent_service.id,)), escape(obj.parent_service)))
+            return mark_safe('<a href="%s">%s</a>' % (
+                reverse("admin:service_service_change", args=(obj.parent_service.id,)), escape(obj.parent_service)))
         else:
             "-"
+
     parent_service_link.allow_tags = True
     parent_service_link.short_description = "parent_service"
 
@@ -256,12 +276,24 @@ admin.site.register(Style, StyleAdmin)
 
 # NOT NEEDED ADMIN PAGES CAN BE OUTCOMMENTED
 
-#admin.site.register(LegalDate, LegalDateAdmin)
-#admin.site.register(LegalReport, LegalReportAdmin)
-#admin.site.register(ServiceType, ServiceTypeAdmin)
+# admin.site.register(LegalDate, LegalDateAdmin)
+# admin.site.register(LegalReport, LegalReportAdmin)
+# admin.site.register(ServiceType, ServiceTypeAdmin)
 admin.site.register(ServiceUrl, ServiceUrlAdmin)
 admin.site.register(GenericUrl, GenericUrlAdmin)
 
 admin.site.register(MapContext)
 admin.site.register(MapResource)
 admin.site.register(WmsOffering)
+admin.site.register(
+    MapResourceFolder,
+    DraggableMPTTAdmin,
+    list_display=(
+        'tree_actions',
+        'indented_title',
+        # ...more fields if you feel like it...
+    ),
+    list_display_links=(
+        'indented_title',
+    ),
+)

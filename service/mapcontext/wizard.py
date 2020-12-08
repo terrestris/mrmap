@@ -10,11 +10,11 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from MrMap.wizards import MrMapWizard
-from .forms import MapContextIdentificationForm, MapContextLayersForm
-from ..models import MapContext, MapResource
+from .forms import MapContextForm, MapContextLayersForm
+from .models import MapContext, MapResource
 
 NEW_MAPCONTEXT_WIZARD_FORMS = [
-    (_("identification"), MapContextIdentificationForm),
+    (_("identification"), MapContextForm),
     (_("layers"), MapContextLayersForm)
 ]
 
