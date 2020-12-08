@@ -9,7 +9,7 @@ import uuid
 
 from django.contrib.gis.db import models
 
-from .models import Resource, Layer
+from service.models import Resource, Layer
 
 
 class MapContext(Resource):
