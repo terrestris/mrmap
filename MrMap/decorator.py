@@ -5,6 +5,7 @@ Contact: michel.peltriaux@vermkv.rlp.de
 Created on: 08.05.19
 
 """
+import functools
 import json
 import uuid
 
@@ -33,6 +34,7 @@ def check_permission(permission_needed: PermissionEnum):
          The function
     """
     def method_wrap(function):
+        @functools.wraps(function)
         def wrap(request, *args, **kwargs):
             user = user_helper.get_user(request)
             has_perm = user.has_permission(permission_needed)
@@ -43,8 +45,10 @@ def check_permission(permission_needed: PermissionEnum):
 
             return function(request=request, *args, **kwargs)
 
-        wrap.__doc__ = function.__doc__
-        wrap.__name__ = function.__name__
+         # better use @functools.wraps, function.__name__ will not always work
+         # (e.g. for functions returned by @method_decorator)
+#        wrap.__doc__ = function.__doc__
+#        wrap.__name__ = function.__name__
         return wrap
     return method_wrap
 

@@ -5,74 +5,74 @@ Contact: schneider@terrestris.de
 Created on: 30.11.20
 
 """
+import functools
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.forms import forms
 from django.http import HttpRequest, HttpResponse, Http404, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.template.loader import render_to_string
 from django.urls import resolve, reverse
 from django.utils.decorators import method_decorator
-from django.utils.html import format_html
-from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
 from MrMap.decorator import check_permission
 from service.mapcontext.helper import map_context, get_resource_folder, check_folder_exists
 from service.mapcontext.models import MapResourceFolder
-from service.mapcontext.wizard import NewMapContextWizard, NEW_MAPCONTEXT_WIZARD_FORMS
 from structure.permissionEnums import PermissionEnum
-from .forms import MapContextWmsLayerForm, MapContextForm
+from .forms import MapContextForm, MapContextLayersForm, MapContextResourceForm
 from .models import MapContext
 
 
-def wmsresource(request, context_id, folder_path):
-    # if this is a POST request we need to process the form data
-    if request.method == 'POST':
-        # create a form instance and populate it with data from the request:
-        form = MapContextWmsLayerForm(request.POST)
-        # check whether it's valid:
-        if form.is_valid():
-            # process the data in form.cleaned_data as required
-            # ...
-            # redirect to a new URL:
-            return HttpResponseRedirect('/thanks/')
-    # if a GET (or any other method) we'll create a blank form
-    else:
-        form = MapContextWmsLayerForm(request.GET)
-    rendered_wizard = render_to_string(request=request,
-                                       template_name='mapcontext/wmsresource.html',
-                                       context={'form': form})
-    view_function = resolve(reverse("home"))
-    return view_function.func(request=request, update_params={'rendered_modal': rendered_wizard})
+@method_decorator(login_required, name='dispatch')
+@method_decorator(check_permission(PermissionEnum.CAN_REGISTER_RESOURCE), name='dispatch')
+class MapContextView(View):
 
+    def render_form(func):
+        @functools.wraps(func)
+        def _wrap(request, *args, **kwargs):
+            result = func(request, *args, **kwargs)
+            if not isinstance(result, forms.Form):
+                return result
+            html = render_to_string(request=request, template_name='mapcontext/mapcontext.html',
+                                    context={'form_mapcontext': result,
+                                             # TODO why must this be called form (or autocompletion breaks)?
+                                             'form': MapContextResourceForm(),
+                                             'current_view': 'home'})
+            view_function = resolve(reverse("home"))
+            return view_function.func(request=request, update_params={'rendered_modal': html})
 
-@login_required
-@check_permission(
-    PermissionEnum.CAN_REGISTER_RESOURCE
-)
-def mapcontext(request: HttpRequest):
+        return _wrap
 
-    mapcontext = None
-    if request.method == 'POST':
+    @staticmethod
+    @render_form
+    def get(request, context_id=None):
+        if context_id:
+            context = get_object_or_404(MapContext, id=context_id)
+            return MapContextForm(initial={'title': context.title, 'abstract': context.abstract,
+                                           'date_stamp': context.update_date, 'layer_tree': context.layer_tree})
+        return MapContextForm()
+
+    @staticmethod
+    @render_form
+    def post(request, context_id=None):
         form = MapContextForm(request.POST)
-        if form.is_valid():
-            ## MapContext updaten?
-            return HttpResponseRedirect(reverse("home"), status=303)
-    else:
-        form = MapContextForm(request.GET)
-        mapcontext = MapContext.objects.create()
-        MapResourceFolder.objects.create(name='root', context=mapcontext)
-
-    folders = MapResourceFolder.objects.filter(context=mapcontext).prefetch_related('mapresource_set')
-    rendered_wizard = render_to_string(request=request,
-                                       template_name='mapcontext/mapcontext.html',
-                                       context={'form': form,
-                                                'nodes': folders,
-                                                'context_id': mapcontext.id})
-    view_function = resolve(reverse("home"))
-    return view_function.func(request=request, update_params={'rendered_modal': rendered_wizard})
+        if not form.is_valid():
+            return form
+        if context_id:
+            context = get_object_or_404(MapContext, id=context_id)
+            context.title = form.cleaned_data['title']
+            context.abstract = form.cleaned_data['abstract']
+            context.layer_tree = form.cleaned_data['layer_tree']
+            context.save()
+        else:
+            MapContext.objects.create(title=form.cleaned_data['title'],
+                                      abstract=form.cleaned_data['abstract'],
+                                      # language_code=form.cleaned_data['language_code'],
+                                      layer_tree=form.cleaned_data['layer_tree'])
+        return HttpResponseRedirect(reverse("home"), status=303)
 
 
 @login_required
@@ -88,13 +88,19 @@ def add_mapcontext_old(request: HttpRequest):
         Returns:
              params (dict): The rendering parameter
     """
-    return NewMapContextWizard.as_view(
-        form_list=NEW_MAPCONTEXT_WIZARD_FORMS,
-        current_view=request.GET.get('current-view'),
-        # TODO translate me
-        title=_(format_html('<b>Add New Map Context</b>')),
-        id_wizard='add_new_mapcontext_wizard',
-    )(request=request)
+    form = MapContextLayersForm(request)
+    html = render_to_string(request=request, template_name='mapcontext/mapcontext.html',
+                            context={'form': form, 'current_view': 'home'})
+    view_function = resolve(reverse("home"))
+    return view_function.func(request=request, update_params={'rendered_modal': html})
+    # return MapContextLayersForm.as_view()(request=request)
+    # return NewMapContextWizard.as_view(
+    #     form_list=NEW_MAPCONTEXT_WIZARD_FORMS,
+    #     current_view=request.GET.get('current-view'),
+    #     # TODO translate me
+    #     title=_(format_html('<b>Add New Map Context</b>')),
+    #     id_wizard='add_new_mapcontext_wizard',
+    # )(request=request)
 
 
 def get_mapcontext_atom(request: HttpRequest, context_id):

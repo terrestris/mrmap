@@ -5,10 +5,13 @@ Contact: schneider@terrestris.de
 Created on: 30.11.20
 
 """
+import json
+
 from owslib.owscontext.core import OwcContext, OwcResource, OwcOffering, OwcOperation
 
 from .models import MapContext, MapResource, WmsOffering
 from .models import MapResourceFolder
+from ..models import Layer
 
 
 def get_resource_folder(context, folder_path):
@@ -41,7 +44,53 @@ def check_folder_exists(target_folder, position, name):
     return get_subfolder_with_name(parent_folder, name)
 
 
+def _map_wms_layer(wms_layer_dict: dict):
+    wms_layer = Layer.objects.get(metadata__id=wms_layer_dict.get('id'))
+    # TODO use public id?
+    service_id = wms_layer.parent_service.metadata_id
+    wms_url = f"http://localhost:8000/resource/metadata/{service_id}/operation"
+    # TODO for GetCapabilities, always use proxied (MrMap) URL
+    get_capabilities_url = f"{wms_url}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities"
+    # TODO for GetMap, check when to use proxied and when to use external URL
+    # TODO use configured BBOX
+    # TODO style
+    # TODO what to do with width & height?
+    get_map_url = f"{wms_url}?SERVICE=WMS&VERSION=1.1.1&request=GetMap"
+    operations = [OwcOperation(operations_code="GetCapabilities", http_method="GET", request_url=get_capabilities_url),
+                  OwcOperation(operations_code="GetMap", http_method="GET", request_url=get_map_url)]
+    return OwcOffering(offering_code="http://www.opengis.net/spec/owc/1.0/req/wms", operations=operations)
+
+
+def _map_resource_node(node: dict, folder_path: str):
+    offerings = []
+    data = node.get('data', {})
+    if data.get('wms_layer'):
+        offerings.append(_map_wms_layer(data.get('wms_layer')))
+    return OwcResource(id=None,
+                       title=node.get("text"),
+                       folder=folder_path,
+                       subtitle="",
+                       update_date=None,
+                       offerings=offerings)
+
+
 def map_context(context: MapContext):
+    resources = []
+    layer_tree = json.loads(context.layer_tree)
+    node_id_to_folder = {}
+    for node in layer_tree:
+        parent = node.get('parent', None)
+        if parent:
+            if parent == '#':
+                node_id_to_folder[node.get('id')] = ''
+            else:
+                node_id_to_folder[node.get('id')] = node_id_to_folder[parent] + '/' + node.get('text')
+        if node.get("type") == "resource":
+            resources.append(_map_resource_node(node, node_id_to_folder.get(parent, None)))
+    return OwcContext(id=context.id.hex, update_date=context.last_modified, title=context.title, resources=resources)
+
+
+def map_context_old(context: MapContext):
     roots = MapResourceFolder.objects.filter(context__id=context.id) \
         .prefetch_related('mapresource_set',
                           'mapresource_set__wmsoffering_set',

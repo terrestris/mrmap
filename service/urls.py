@@ -1,7 +1,7 @@
 from django.urls import path
 
 from service.mapcontext.views import get_mapcontext_atom, get_mapcontext_json, show_mapcontext_folders, \
-    FoldersView, wmsresource, mapcontext
+    FoldersView, MapContextView
 from service.views import *
 
 app_name = 'resource'
@@ -39,13 +39,14 @@ urlpatterns = [
     path('csw/', csw_index, name='csw-index'),
     path('datasets/', datasets_index, name='datasets-index'),
 
-    path('mapcontext/add/', mapcontext, name='mapcontext'),
+    #path('mapcontext/add/', mapcontext, name='mapcontext'),
+    path('mapcontext/add/', MapContextView.as_view(), name='mapcontext'),
+    path('mapcontext/<context_id>/edit', MapContextView.as_view(), name='edit-mapcontext'),
     path('mapcontext/<context_id>/atom', get_mapcontext_atom, name='get-mapcontext-atom'),
     path('mapcontext/<context_id>/json', get_mapcontext_json, name='get-mapcontext-json'),
     path('mapcontext/<context_id>/show_folders', show_mapcontext_folders),
     path('mapcontext/<context_id>/folders/', FoldersView.as_view()),
     path('mapcontext/<context_id>/folders/<path:folder_path>', FoldersView.as_view()),
-    path('mapcontext/<context_id>/wmsresource/<path:folder_path>', wmsresource, name='edit-wmsresource'),
 
     path('detail/<object_id>', detail, name='detail'),
 
